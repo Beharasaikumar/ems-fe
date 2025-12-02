@@ -16,13 +16,13 @@ export const AttendanceManager: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState<Record<string, boolean>>({}); // map of empId->saving flag
+  const [saving, setSaving] = useState<Record<string, boolean>>({}); 
 
   const dateStr = useMemo(() => selectedDate.toISOString().split('T')[0], [selectedDate]);
   const monthPrefix = useMemo(() => {
     const y = selectedDate.getFullYear();
     const m = String(selectedDate.getMonth() + 1).padStart(2, '0');
-    return `${y}-${m}`; // YYYY-MM
+    return `${y}-${m}`; 
   }, [selectedDate]);
 
   useEffect(() => {
@@ -39,7 +39,7 @@ export const AttendanceManager: React.FC = () => {
     if (token) headers['Authorization'] = `Bearer ${token}`;
     const res = await fetch(`${API_BASE}${path}`, { ...opts, headers });
     if (res.status === 401) {
-      // optional: handle logout
+      
       localStorage.removeItem('lomaa_token');
       throw new Error('Unauthorized');
     }
@@ -59,7 +59,7 @@ export const AttendanceManager: React.FC = () => {
       setEmployees(data);
     } catch (err) {
       console.error('Failed to load employees', err);
-      // optionally notify user
+    
     } finally {
       setLoading(false);
     }
@@ -95,15 +95,12 @@ export const AttendanceManager: React.FC = () => {
   );
 
   async function onUpdateAttendance(empId: string, date: string, status: AttendanceStatus) {
-    // set saving flag per employee
-    setSaving(prev => ({ ...prev, [empId]: true }));
+     setSaving(prev => ({ ...prev, [empId]: true }));
     try {
-      // POST /api/attendance { employeeId, date, status }
-      const payload = { employeeId: empId, date, status };
+       const payload = { employeeId: empId, date, status };
       const result = await apiFetch('/attendance', { method: 'POST', body: JSON.stringify(payload) }) as AttendanceRecord;
 
-      // update local attendance state (upsert)
-      setAttendance(prev => {
+       setAttendance(prev => {
         const idx = prev.findIndex(r => r.employeeId === result.employeeId && r.date === result.date);
         if (idx >= 0) {
           const copy = [...prev];

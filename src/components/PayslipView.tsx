@@ -1,12 +1,11 @@
-// src/components/PayslipView.tsx
 import React, { useEffect, useState } from 'react';
 import { Employee, Payslip } from '../types';
 import { X, Download, Share2, Mail, CheckCircle, Leaf } from 'lucide-react';
 
 interface PayslipViewProps {
-  
-  employee?: Employee;  
-  payslip: Payslip | { id: string; employeeId?: string; month?: string; year?: number; netSalary?: number;  };
+
+  employee?: Employee;
+  payslip: Payslip | { id: string; employeeId?: string; month?: string; year?: number; netSalary?: number; };
   onClose: () => void;
 }
 
@@ -46,7 +45,7 @@ export const PayslipView: React.FC<PayslipViewProps> = ({ employee: initialEmplo
         if (data.employee) setEmployee(data.employee);
       } catch (err: any) {
         console.error('Failed to fetch payslip view', err);
-       } finally {
+      } finally {
         if (!cancelled) setLoading(false);
       }
     }
@@ -54,10 +53,10 @@ export const PayslipView: React.FC<PayslipViewProps> = ({ employee: initialEmplo
     return () => { cancelled = true; };
   }, [payslipId]);
 
-   
+
   const payload = remotePayslip ?? (initialPayslip as any);
 
-  
+
   const monthLabel = (() => {
     try {
       const month = payload.month ?? (initialPayslip as any)?.month ?? '';
@@ -71,8 +70,59 @@ export const PayslipView: React.FC<PayslipViewProps> = ({ employee: initialEmplo
   })();
 
   const getShareText = () => {
-    return `Payslip for ${monthLabel}\n\nCompany: Lomaa IT Solutions\nEmployee: ${employee?.name ?? payload.employeeName ?? payload.employeeId}\nNet Pay: ₹${(payload.netSalary ?? 0).toLocaleString('en-IN')}\n\nRemarks:\n${payload.remarks ?? ''}`;
+    const empName = employee?.name ?? payload.employeeName ?? 'N/A';
+    const empId = payload.employeeId ?? 'N/A';
+    const dept = employee?.department ?? payload.employee?.department ?? 'N/A';
+    const role = employee?.role ?? payload.employee?.role ?? 'N/A';
+    const bank = employee?.bankAccountNumber ?? payload.employee?.bankAccountNumber ?? 'N/A';
+    const pan = (employee?.pan ?? payload.employee?.pan ?? 'N/A').toString().toUpperCase();
+    const pf = employee?.pfAccountNumber ?? payload.employee?.pfAccountNumber ?? 'N/A';
+    const daysPresent = Math.round(((employee?.attendancePercentage ?? payload.attendancePercentage ?? 0) / 100) * 30);
+    const remarks = payload.remarks ?? employee?.remarks ?? '-';
+
+    const fmt = (n?: number) => `₹${(n ?? 0).toLocaleString('en-IN')}`;
+
+    return `
+ PAYSLIP — ${monthLabel}
+
+ Company: Lomaa IT Solutions
+
+ Employee Name: ${empName}
+ Employee ID: ${empId}
+ Department: ${dept}
+ Designation: ${role}
+
+ Bank Account: ${bank}
+ PAN: ${pan}
+ PF No: ${pf}
+
+ Days Present: ${daysPresent} days
+
+------------------------------
+ Earnings
+• Basic Salary: ${fmt(payload.earnings.basic)}
+• HRA: ${fmt(payload.earnings.hra)}
+• DA: ${fmt(payload.earnings.da)}
+• Special Allowance: ${fmt(payload.earnings.specialAllowance)}
+ Gross Earnings: ${fmt(payload.earnings.gross)}
+
+------------------------------
+ Deductions
+• PF (12%): ${fmt(payload.deductions.pf)}
+• ESI (0.75%): ${fmt(payload.deductions.esi)}
+• Professional Tax: ${fmt(payload.deductions.pt)}
+• TDS: ${fmt(payload.deductions.tax)}
+ Total Deductions: ${fmt(payload.deductions.totalDeductions)}
+
+------------------------------
+ NET PAY: ${fmt(payload.netSalary)}
+
+ HR Remarks: ${remarks}
+
+ This is a system-generated payslip.
+  `.trim();
   };
+
 
   const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(getShareText())}`;
   const mailtoUrl = `mailto:${employee?.email ?? ''}?subject=${encodeURIComponent(`Payslip for ${employee?.name ?? ''}`)}&body=${encodeURIComponent(getShareText())}`;
@@ -108,35 +158,35 @@ export const PayslipView: React.FC<PayslipViewProps> = ({ employee: initialEmplo
     }
   }
 
-  async function sendPayslipEmail() {
-    try {
-      if (!payslipId) return alert('Payslip id missing');
-      const to = employee?.email ?? prompt('Send payslip to (email):', '') ?? '';
-      if (!to) return;
-      setSending(true);
-      const token = getToken();
-      const res = await fetch(`${API_BASE}/payroll/email/${encodeURIComponent(payslipId)}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        },
-        body: JSON.stringify({ to })
-      });
-      if (!res.ok) {
-        const txt = await res.text().catch(() => '');
-        throw new Error(txt || `Email send failed (${res.status})`);
-      }
-      alert('Email request sent. (If SMTP configured, employee will receive mail.)');
-    } catch (err: any) {
-      console.error('Email failed', err);
-      alert(err?.message ?? 'Failed to send email');
-    } finally {
-      setSending(false);
-    }
-  }
+  // async function sendPayslipEmail() {
+  //   try {
+  //     if (!payslipId) return alert('Payslip id missing');
+  //     const to = employee?.email ?? prompt('Send payslip to (email):', '') ?? '';
+  //     if (!to) return;
+  //     setSending(true);
+  //     const token = getToken();
+  //     const res = await fetch(`${API_BASE}/payroll/email/${encodeURIComponent(payslipId)}`, {
+  //       method: 'POST',
+  //       headers: {
+  //         'Content-Type': 'application/json',
+  //         ...(token ? { Authorization: `Bearer ${token}` } : {})
+  //       },
+  //       body: JSON.stringify({ to })
+  //     });
+  //     if (!res.ok) {
+  //       const txt = await res.text().catch(() => '');
+  //       throw new Error(txt || `Email send failed (${res.status})`);
+  //     }
+  //     alert('Email request sent. (If SMTP configured, employee will receive mail.)');
+  //   } catch (err: any) {
+  //     console.error('Email failed', err);
+  //     alert(err?.message ?? 'Failed to send email');
+  //   } finally {
+  //     setSending(false);
+  //   }
+  // }
 
-   
+
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-white w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col animate-fade-in-up">
@@ -155,7 +205,7 @@ export const PayslipView: React.FC<PayslipViewProps> = ({ employee: initialEmplo
             <div className="text-center py-12">Loading payslip…</div>
           ) : (
             <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-8 max-w-2xl mx-auto" id="printable-area">
-               <div className="text-center border-b border-slate-200 pb-6 mb-6">
+              <div className="text-center border-b border-slate-200 pb-6 mb-6">
                 <div className="flex items-center justify-center gap-3 mb-2">
                   <div className="w-10 h-10 rounded-full bg-slate-900 flex items-center justify-center shadow-lg">
                     <div className="relative">
@@ -179,84 +229,84 @@ export const PayslipView: React.FC<PayslipViewProps> = ({ employee: initialEmplo
                 <div className="text-right">
                   <span className="text-xs text-slate-500 uppercase tracking-wide">Employee ID</span>
                   <div className="font-bold text-slate-800">{payload.employeeId}</div>
-                </div>      
-              <div className="flex flex-col">
-                <span className="text-xs text-slate-500 uppercase tracking-wide">Department</span>
-                <span className="font-bold text-slate-800">{employee?.department ?? payload.employee?.department ?? 'N/A'}</span>
-              </div>
-              <div className="flex flex-col text-right">
-                <span className="text-xs text-slate-500 uppercase tracking-wide">Designation</span>
-                <span className="font-bold text-slate-800">{employee?.role ?? payload.employee?.role ?? 'N/A'}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs text-slate-500 uppercase tracking-wide">Department</span>
+                  <span className="font-bold text-slate-800">{employee?.department ?? payload.employee?.department ?? 'N/A'}</span>
+                </div>
+                <div className="flex flex-col text-right">
+                  <span className="text-xs text-slate-500 uppercase tracking-wide">Designation</span>
+                  <span className="font-bold text-slate-800">{employee?.role ?? payload.employee?.role ?? 'N/A'}</span>
+                </div>
+
+                <div className="flex flex-col">
+                  <span className="text-xs text-slate-500 uppercase tracking-wide">Bank Account</span>
+                  <span className="font-semibold text-slate-700">{employee?.bankAccountNumber ?? payload.employee?.bankAccountNumber ?? 'N/A'}</span>
+                </div>
+                <div className="flex flex-col text-right">
+                  <span className="text-xs text-slate-500 uppercase tracking-wide">PAN Number</span>
+                  <span className="font-semibold text-slate-700 uppercase">{(employee?.pan ?? payload.employee?.pan ?? 'N/A')}</span>
+                </div>
+
+                <div className="flex flex-col">
+                  <span className="text-xs text-slate-500 uppercase tracking-wide">PF No</span>
+                  <span className="font-semibold text-slate-700 uppercase">{employee?.pfAccountNumber ?? payload.employee?.pfAccountNumber ?? 'N/A'}</span>
+                </div>
+                <div className="flex flex-col text-right">
+                  <span className="text-xs text-slate-500 uppercase tracking-wide">Days Present</span>
+                  <span className="font-semibold text-slate-700">{Math.round(((employee.attendancePercentage ?? payload.attendancePercentage ?? 0) / 100) * 30)} days</span>
+                </div>
               </div>
 
-              <div className="flex flex-col">
-                 <span className="text-xs text-slate-500 uppercase tracking-wide">Bank Account</span>
-                 <span className="font-semibold text-slate-700">{employee?.bankAccountNumber ?? payload.employee?.bankAccountNumber ?? 'N/A'}</span>
-              </div>
-              <div className="flex flex-col text-right">
-                 <span className="text-xs text-slate-500 uppercase tracking-wide">PAN Number</span>
-                 <span className="font-semibold text-slate-700 uppercase">{(employee?.pan ?? payload.employee?.pan ?? 'N/A')}</span>
+              {/* Salary Table */}
+              <div className="border border-slate-200 rounded-lg overflow-hidden mb-8">
+                <div className="grid grid-cols-2 bg-slate-100 font-semibold text-slate-700 border-b border-slate-200">
+                  <div className="p-3">Earnings</div>
+                  <div className="p-3 border-l border-slate-200">Deductions</div>
+                </div>
+                <div className="grid grid-cols-2 text-sm">
+                  <div className="p-4 space-y-3">
+                    <div className="flex justify-between"><span>Basic Salary</span> <span>₹{payload.earnings.basic.toLocaleString()}</span></div>
+                    <div className="flex justify-between"><span>HRA</span> <span>₹{payload.earnings.hra.toLocaleString()}</span></div>
+                    <div className="flex justify-between"><span>DA</span> <span>₹{payload.earnings.da.toLocaleString()}</span></div>
+                    <div className="flex justify-between"><span>Special Allow.</span> <span>₹{payload.earnings.specialAllowance.toLocaleString()}</span></div>
+                  </div>
+                  <div className="p-4 space-y-3 border-l border-slate-200 bg-slate-50/50">
+                    <div className="flex justify-between text-slate-700"><span>PF (12%)</span> <span>₹{payload.deductions.pf.toLocaleString()}</span></div>
+                    <div className="flex justify-between text-slate-700"><span>ESI (0.75%)</span> <span>₹{payload.deductions.esi.toLocaleString()}</span></div>
+                    <div className="flex justify-between text-slate-700"><span>Prof. Tax</span> <span>₹{payload.deductions.pt.toLocaleString()}</span></div>
+                    <div className="flex justify-between text-slate-700"><span>TDS</span> <span>₹{payload.deductions.tax.toLocaleString()}</span></div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 font-bold bg-slate-50 border-t border-slate-200">
+                  <div className="p-3 flex justify-between"><span>Gross Earnings</span> <span>₹{payload.earnings.gross.toLocaleString()}</span></div>
+                  <div className="p-3 border-l border-slate-200 flex justify-between text-red-600"><span>Total Ded.</span> <span>₹{payload.deductions.totalDeductions.toLocaleString()}</span></div>
+                </div>
               </div>
 
-              <div className="flex flex-col">
-                 <span className="text-xs text-slate-500 uppercase tracking-wide">PF No</span>
-                 <span className="font-semibold text-slate-700 uppercase">{employee?.pfAccountNumber ?? payload.employee?.pfAccountNumber ?? 'N/A'}</span>
+              <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-4 flex justify-between items-center mb-6">
+                <span className="font-bold text-emerald-900 text-lg">Net Pay</span>
+                <span className="font-bold text-emerald-700 text-2xl">₹{payload.netSalary.toLocaleString('en-IN')}</span>
               </div>
-               <div className="flex flex-col text-right">
-                 <span className="text-xs text-slate-500 uppercase tracking-wide">Days Present</span>
-                 <span className="font-semibold text-slate-700">{Math.round(((payload.attendancePercentage ?? payload.attendancePercentage ?? 0) / 100) * 30)} days</span>
+
+              {(payload.remarks ?? employee?.remarks) && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <p className="text-xs font-bold text-yellow-800 uppercase tracking-wide mb-1 flex items-center gap-1">
+                    <CheckCircle size={14} /> HR Remarks
+                  </p>
+                  <p className="text-slate-700 italic">"{employee.remarks}"</p>
+                </div>
+              )}
+
+              <div className="mt-8 text-center">
+                <p className="text-[10px] text-slate-400">This is a system-generated payslip and does not require a signature.</p>
               </div>
             </div>
 
-            {/* Salary Table */}
-            <div className="border border-slate-200 rounded-lg overflow-hidden mb-8">
-              <div className="grid grid-cols-2 bg-slate-100 font-semibold text-slate-700 border-b border-slate-200">
-                <div className="p-3">Earnings</div>
-                <div className="p-3 border-l border-slate-200">Deductions</div>
-              </div>
-              <div className="grid grid-cols-2 text-sm">
-                <div className="p-4 space-y-3">
-                  <div className="flex justify-between"><span>Basic Salary</span> <span>₹{payload.earnings.basic.toLocaleString()}</span></div>
-                  <div className="flex justify-between"><span>HRA</span> <span>₹{payload.earnings.hra.toLocaleString()}</span></div>
-                  <div className="flex justify-between"><span>DA</span> <span>₹{payload.earnings.da.toLocaleString()}</span></div>
-                  <div className="flex justify-between"><span>Special Allow.</span> <span>₹{payload.earnings.specialAllowance.toLocaleString()}</span></div>
-                </div>
-                <div className="p-4 space-y-3 border-l border-slate-200 bg-slate-50/50">
-                  <div className="flex justify-between text-slate-700"><span>PF (12%)</span> <span>₹{payload.deductions.pf.toLocaleString()}</span></div>
-                  <div className="flex justify-between text-slate-700"><span>ESI (0.75%)</span> <span>₹{payload.deductions.esi.toLocaleString()}</span></div>
-                  <div className="flex justify-between text-slate-700"><span>Prof. Tax</span> <span>₹{payload.deductions.pt.toLocaleString()}</span></div>
-                  <div className="flex justify-between text-slate-700"><span>TDS</span> <span>₹{payload.deductions.tax.toLocaleString()}</span></div>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 font-bold bg-slate-50 border-t border-slate-200">
-                <div className="p-3 flex justify-between"><span>Gross Earnings</span> <span>₹{payload.earnings.gross.toLocaleString()}</span></div>
-                <div className="p-3 border-l border-slate-200 flex justify-between text-red-600"><span>Total Ded.</span> <span>₹{payload.deductions.totalDeductions.toLocaleString()}</span></div>
-              </div>
-            </div>
-
-            <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-4 flex justify-between items-center mb-6">
-              <span className="font-bold text-emerald-900 text-lg">Net Pay</span>
-              <span className="font-bold text-emerald-700 text-2xl">₹{payload.netSalary.toLocaleString('en-IN')}</span>
-            </div>
-
-            {(payload.remarks ?? employee?.remarks) && (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                <p className="text-xs font-bold text-yellow-800 uppercase tracking-wide mb-1 flex items-center gap-1">
-                  <CheckCircle size={14} /> HR Remarks
-                </p>
-                <p className="text-slate-700 italic">"{employee.remarks}"</p>
-              </div>
-            )}
- 
-                <div className="mt-8 text-center">
-                  <p className="text-[10px] text-slate-400">This is a system-generated payslip and does not require a signature.</p>
-                </div>
-              </div>
-            
           )}
         </div>
 
-        <div className="p-6 bg-white border-t border-slate-200 flex gap-4 justify-end shrink-0">
+        <div className="p-6 bg-white border-t border-slate-200 flex gap-4 justify-center shrink-0">
           <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-6 py-2.5 bg-green-500 hover:bg-green-600 text-white rounded-lg font-medium transition-colors">
             <Share2 size={18} /> WhatsApp
           </a>
@@ -269,9 +319,9 @@ export const PayslipView: React.FC<PayslipViewProps> = ({ employee: initialEmplo
             <Download size={18} /> {downloading ? 'Preparing...' : 'Download (PDF)'}
           </button>
 
-          <button onClick={sendPayslipEmail} disabled={sending} className="flex items-center gap-2 px-6 py-2.5 bg-white border border-slate-100 text-slate-700 rounded-lg font-medium hover:bg-slate-50 transition-colors disabled:opacity-60">
+          {/* <button onClick={sendPayslipEmail} disabled={sending} className="flex items-center gap-2 px-6 py-2.5 bg-white border border-slate-100 text-slate-700 rounded-lg font-medium hover:bg-slate-50 transition-colors disabled:opacity-60">
             <Mail size={18} /> {sending ? 'Sending…' : 'Send Email'}
-          </button>
+          </button> */}
 
           <button onClick={() => window.print()} className="flex items-center gap-2 px-6 py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-medium transition-colors">
             <Download size={18} /> Print

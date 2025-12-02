@@ -3,10 +3,10 @@ import { X, Briefcase, Mail, Phone, Calendar, CreditCard, User, Landmark, Shield
 import { Employee } from '../types';
 
 interface EmployeeDetailsModalProps {
-  employee?: Employee | null;      // optional: if not provided, pass id via employeeId
+  employee?: Employee | null;      
   employeeId?: string | null;
   onClose: () => void;
-  onDeleted?: (id: string) => void; // optional callback so parent can refresh list
+  onDeleted?: (id: string) => void;  
 }
 
 const API_BASE = process.env.REACT_APP_API_URL ?? 'http://localhost:4000/api';
@@ -21,19 +21,15 @@ export const EmployeeDetailsModal: React.FC<EmployeeDetailsModalProps> = ({ empl
   const [loading, setLoading] = useState<boolean>(false);
   const [deleting, setDeleting] = useState<boolean>(false);
 
-  // Determine id to fetch (from prop or from employee object)
-  const idToUse = employeeId ?? initialEmployee?.id ?? null;
+   const idToUse = employeeId ?? initialEmployee?.id ?? null;
 
   useEffect(() => {
-    // If modal opened with an id (or employee prop changes), fetch latest details
-    if (!initialEmployee && idToUse) {
+     if (!initialEmployee && idToUse) {
       fetchEmployee(idToUse);
     } else {
-      // If we have an initial employee prop, ensure local state is synced
-      setEmployee(initialEmployee ?? null);
+       setEmployee(initialEmployee ?? null);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialEmployee, idToUse]);
+   }, [initialEmployee, idToUse]);
 
   async function apiFetch(path: string, opts: RequestInit = {}) {
     const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(opts.headers as any ?? {}) };
@@ -41,8 +37,7 @@ export const EmployeeDetailsModal: React.FC<EmployeeDetailsModalProps> = ({ empl
     if (token) headers['Authorization'] = `Bearer ${token}`;
     const res = await fetch(`${API_BASE}${path}`, { ...opts, headers });
     if (res.status === 401) {
-      // handle unauthorized: clear token and inform user
-      localStorage.removeItem(TOKEN_KEY);
+       localStorage.removeItem(TOKEN_KEY);
       throw new Error('Unauthorized — please login again');
     }
     if (!res.ok) {
@@ -62,8 +57,7 @@ export const EmployeeDetailsModal: React.FC<EmployeeDetailsModalProps> = ({ empl
     } catch (err: any) {
       console.error('Failed to fetch employee', err);
       alert(err?.message ?? 'Failed to fetch employee');
-      // keep previous state
-    } finally {
+     } finally {
       setLoading(false);
     }
   }
@@ -89,7 +83,7 @@ export const EmployeeDetailsModal: React.FC<EmployeeDetailsModalProps> = ({ empl
     }
   }
 
-  if (!employee && !loading) return null; // nothing to show
+  if (!employee && !loading) return null; 
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">

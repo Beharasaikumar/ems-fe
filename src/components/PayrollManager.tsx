@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Employee, EmployeeAttendance, Payslip } from '../types';
-import { IndianRupee, Sparkles, Eye, Loader2, CalendarClock, Search, Mail } from 'lucide-react';
+import { IndianRupee, Sparkles, Eye, Loader2, CalendarClock, Search, Mail, X } from 'lucide-react';
 import { PayslipView } from './PayslipView';
 
 type AttendanceRecord = { id: string; employeeId: string; date: string; status: string };
@@ -20,16 +20,18 @@ export const PayrollManager: React.FC = () => {
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [employeePayslips, setEmployeePayslips] = useState<Record<string, Payslip[]>>({}); // history cache
+  const [employeePayslips, setEmployeePayslips] = useState<Record<string, Payslip[]>>({});  
+  const [latestPayslips, setLatestPayslips] = useState<Payslip[]>([]);
+  const [latestOpen, setLatestOpen] = useState(false);
+  const [latestLoading, setLatestLoading] = useState(false);
 
   const today = new Date();
-  const monthPrefix = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`; // YYYY-MM
+  const monthPrefix = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;  
 
   useEffect(() => {
     loadEmployees();
     loadAttendanceForMonth(monthPrefix);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+   }, []);
 
   async function apiFetch(path: string, opts: RequestInit = {}) {
     const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(opts.headers as any ?? {}) };
@@ -54,6 +56,18 @@ export const PayrollManager: React.FC = () => {
     try {
       const data = await apiFetch('/employees') as Employee[];
       setEmployees(data);
+        await Promise.all(data.map(async (emp) => {
+      try {
+        const rows = await fetchPayslipHistory(emp.id);
+        if (rows && rows.length > 0) {
+           setGeneratedPayslips(prev => ({ ...prev, [emp.id]: rows[0] }));
+        }
+      } catch (e) {
+        
+        console.warn('Failed to load payslip for', emp.id, e);
+      }
+    }));
+
     } catch (err) {
       console.error('Failed to load employees', err);
       alert('Failed to load employees');
@@ -71,11 +85,13 @@ export const PayrollManager: React.FC = () => {
     }
   }
 
-  async function fetchPayslipHistory(employeeId: string) {
+  async function fetchPayslipHistory(employeeId: string): Promise<Payslip[]> {
     try {
-      const rows = await apiFetch(`/payroll/employee/${employeeId}`) as any[]; // each has data string
-      // Normalise: if server returned persisted payslips with data JSON string, handle that
-      const parsed: Payslip[] = rows.map(r => {
+      const rows = await apiFetch(`/payroll/employee/${employeeId}`) as any[];  
+       const parsed: Payslip[] = rows.map(r => {
+         if (r.data && typeof r.data === 'object') {
+        return r.data as Payslip;
+      }
         if (r.data && typeof r.data === 'string') {
           try { return JSON.parse(r.data) as Payslip; } catch { return r as Payslip; }
         }
@@ -85,6 +101,7 @@ export const PayrollManager: React.FC = () => {
       return parsed;
     } catch (err) {
       console.error('Failed to load payslip history', err);
+       setEmployeePayslips(prev => ({ ...prev, [employeeId]: [] }));
       return [];
     }
   }
@@ -92,13 +109,11 @@ export const PayrollManager: React.FC = () => {
   async function generatePayslip(emp: Employee) {
     setLoadingId(emp.id);
     try {
-      // call backend to generate and persist payslip
-      const payload = {}; // backend uses current month if not provided
+    
+      const payload = {};  
       const result = await apiFetch(`/payroll/generate/${emp.id}`, { method: 'POST', body: JSON.stringify(payload) }) as Payslip;
-      // server returns computed payload (matching earlier server code)
-      setGeneratedPayslips(prev => ({ ...prev, [emp.id]: result }));
-      // update history cache: prepend newest
-      setEmployeePayslips(prev => ({ ...prev, [emp.id]: [result, ...(prev[emp.id] || [])] }));
+       setGeneratedPayslips(prev => ({ ...prev, [emp.id]: result }));
+       setEmployeePayslips(prev => ({ ...prev, [emp.id]: [result, ...(prev[emp.id] || [])] }));
     } catch (err: any) {
       console.error('Generate failed', err);
       alert('Payslip generation failed: ' + (err?.message ?? ''));
@@ -109,8 +124,7 @@ export const PayrollManager: React.FC = () => {
 
   async function downloadPdf(payslip: Payslip) {
     try {
-      // Backend expects POST /payroll/pdf/:payslipId returning PDF bytes
-      const token = getToken();
+       const token = getToken();
       const resp = await fetch(`${API_BASE}/payroll/pdf/${payslip.id}`, {
         method: 'POST',
         headers: token ? { Authorization: `Bearer ${token}` } : {}
@@ -147,6 +161,24 @@ async function emailPayslip(payslip: Payslip, to?: string) {
 }
 
 
+async function fetchLatestPayslips() {
+    setLatestLoading(true);
+    try {
+       const rows = await apiFetch('/payroll/latest') as any[];
+       const parsed: Payslip[] = rows.map(r => {
+        if (typeof r === 'object') return r as Payslip;
+        try { return JSON.parse(r) as Payslip; } catch { return r as Payslip; }
+      });
+      setLatestPayslips(parsed);
+      setLatestOpen(true);
+    } catch (err) {
+      console.error('Failed to fetch latest payslips', err);
+      alert('Failed to fetch latest payslips: ' + (err?.message ?? ''));
+    } finally {
+      setLatestLoading(false);
+    }
+  }
+
   const filteredEmployees = useMemo(() => employees.filter(emp =>
     emp.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     emp.id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -156,6 +188,33 @@ async function emailPayslip(payslip: Payslip, to?: string) {
   const viewPayslip = (emp: Employee, slip: Payslip) => {
     setSelectedPayslip({ emp, slip });
   };
+
+
+   function resolveEmployeeForPayslip(slip: Payslip): Employee | undefined {
+     const possibleIds = [
+       (slip as any).employeeId,
+      (slip as any).empId,
+      (slip as any).employee?.id,
+      (slip as any).userId,
+      slip.id  
+    ].filter(Boolean) as string[];
+
+    if (possibleIds.length > 0) {
+      for (const id of possibleIds) {
+        const e = employees.find(x => x.id === id);
+        if (e) return e;
+      }
+    }
+
+     const name = (slip as any).employeeName || (slip as any).name || (slip as any).empName;
+    if (name) {
+       const e = employees.find(x => x.name === name);
+      if (e) return e;
+       return { id: (slip as any).employeeId ?? (slip as any).empId ?? 'unknown', name } as Employee;
+    }
+
+     return undefined;
+  }
 
   return (
     <div className="space-y-6">
@@ -167,15 +226,25 @@ async function emailPayslip(payslip: Payslip, to?: string) {
           <p className="text-slate-500 mt-1 text-sm">Generate monthly payslips based on actual attendance.</p>
         </div>
 
-        <div className="relative w-full md:w-64">
+        <div className="relative w-full md:w-[35%] flex gap-2">
           <Search className="absolute left-3 top-2.5 text-slate-400" size={18} />
+          <div className="flex gap-5 w-full">
           <input
             type="text"
             placeholder="Search employee..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-sm transition-all"
+            className="w-[60%] pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-sm transition-all"
           />
+            <button
+            onClick={fetchLatestPayslips}
+            className="text-sm px-3 py-2 rounded-md bg-emerald-50 border border-emerald-100 text-emerald-700 hover:bg-emerald-100 transition-colors flex items-center gap-2"
+            title="View latest payslip for all employees"
+            disabled={latestLoading}
+          >
+            {latestLoading ? 'Loading…' : 'View all payslips'}
+          </button>
+          </div>
         </div>
       </div>
 
@@ -210,12 +279,10 @@ async function emailPayslip(payslip: Payslip, to?: string) {
                   <div className="flex flex-col items-end gap-2">
                     <button
                       onClick={async () => {
-                        // load history if not loaded
-                        if (!employeePayslips[emp.id]) await fetchPayslipHistory(emp.id);
+                         if (!employeePayslips[emp.id]) await fetchPayslipHistory(emp.id);
                         const rows = employeePayslips[emp.id] || [];
                         if (rows.length > 0) {
-                          // view latest
-                          viewPayslip(emp, rows[0]);
+                           viewPayslip(emp, rows[0]);
                         } else if (generatedPayslips[emp.id]) {
                           viewPayslip(emp, generatedPayslips[emp.id]);
                         } else {
@@ -230,8 +297,7 @@ async function emailPayslip(payslip: Payslip, to?: string) {
 
                     <button
                       onClick={async () => {
-                        // quick generate & then fetch history
-                        await generatePayslip(emp);
+                         await generatePayslip(emp);
                         await fetchPayslipHistory(emp.id);
                       }}
                       disabled={isLoading}
@@ -271,8 +337,7 @@ async function emailPayslip(payslip: Payslip, to?: string) {
                     onClick={() => {
                       if (slip) viewPayslip(emp, slip);
                       else {
-                        // open latest history if exists
-                        const rows = employeePayslips[emp.id] ?? [];
+                         const rows = employeePayslips[emp.id] ?? [];
                         if (rows.length > 0) viewPayslip(emp, rows[0]);
                         else alert('No payslip to view. Generate one.');
                       }
@@ -284,8 +349,7 @@ async function emailPayslip(payslip: Payslip, to?: string) {
 
                   <button
                     onClick={async () => {
-                      // prefer latest from history, then generated payslip
-                      const rows = employeePayslips[emp.id] ?? [];
+                       const rows = employeePayslips[emp.id] ?? [];
                       const target = rows[0] ?? generatedPayslips[emp.id];
                       if (!target) return alert('Generate payslip first.');
                       await downloadPdf(target);
@@ -312,6 +376,82 @@ async function emailPayslip(payslip: Payslip, to?: string) {
               </div>
             );
           })}
+        </div>
+      )}
+
+
+       {latestOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setLatestOpen(false)} />
+          <div className="relative w-full max-w-3xl mx-4 bg-white rounded-xl shadow-lg overflow-hidden">
+            <div className="p-4 border-b flex items-center justify-between">
+              <h3 className="font-semibold">Latest payslips (one per employee)</h3>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    // refresh
+                    fetchLatestPayslips();
+                  }}
+                  className="text-sm px-3 py-1 rounded-md bg-slate-50 border border-slate-100"
+                >
+                  Refresh
+                </button>
+                <button className="p-2" onClick={() => setLatestOpen(false)}><X /></button>
+              </div>
+            </div>
+
+            <div className="p-4 max-h-[60vh] overflow-auto">
+              {latestPayslips.length === 0 ? (
+                <div className="text-center text-slate-500 p-6">No payslips returned.</div>
+              ) : (
+                <div className="space-y-3">
+                  {latestPayslips.map((slip) => {
+                    const resolved = resolveEmployeeForPayslip(slip);
+                    const empForView = resolved ?? { id: (slip as any).employeeId ?? (slip as any).empId ?? 'unknown', name: (slip as any).employeeName ?? 'Unknown' } as Employee;
+
+                    // format date if available
+                    const gd = (slip as any).generatedDate ? new Date((slip as any).generatedDate) : undefined;
+                    const genDateStr = gd ? gd.toLocaleString() : (slip as any).generatedDate ?? '—';
+
+                    // display key info
+                    return (
+                      <div key={slip.id ?? Math.random()} className="p-3 border rounded-lg flex items-center justify-between">
+                        <div>
+                          <div className="font-medium">{empForView.name}</div>
+                          <div className="text-xs text-slate-500">Payslip ID: {slip.id ?? '—'}</div>
+                          <div className="text-xs text-slate-500">Generated: {genDateStr}</div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => {
+                              // open in payslip view (if we have an employee object)
+                              // if resolved is undefined, create minimal employee object
+                              const emp = resolved ?? { id: (slip as any).employeeId ?? (slip as any).empId ?? 'unknown', name: (slip as any).employeeName ?? 'Unknown' } as Employee;
+                              setLatestOpen(false);
+                              setSelectedPayslip({ emp, slip });
+                            }}
+                            className="py-2 px-3 bg-emerald-50 border border-emerald-100 text-emerald-700 rounded-md text-sm"
+                          >
+                            View
+                          </button>
+
+                          <button
+                            onClick={async () => {
+                              await downloadPdf(slip);
+                            }}
+                            className="py-2 px-3 bg-white border border-slate-100 rounded-md text-sm"
+                          >
+                            Download
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 

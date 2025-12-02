@@ -1,5 +1,4 @@
-// src/App.tsx
-import React, { useEffect, useMemo, useState } from 'react';
+ import React, { useEffect, useMemo, useState } from 'react';
 import { Employee, ViewState, EmployeeAttendance, AttendanceStatus } from './types';
 import { INITIAL_EMPLOYEES, generateMockAttendance } from './constants';
 import { Login } from './components/Login';

@@ -34,15 +34,13 @@ export const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  // derive current month prefix e.g. 2025-11
-  const current = new Date();
+   const current = new Date();
   const monthPrefix = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}`;
   const todayStr = current.toISOString().split('T')[0];
 
   useEffect(() => {
     loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+   }, []);
 
   async function apiFetch(path: string, opts: RequestInit = {}) {
     const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(opts.headers as any ?? {}) };
@@ -83,15 +81,12 @@ export const Dashboard: React.FC = () => {
   const stats = useMemo(() => {
     const totalEmployees = employees.length;
 
-    // count present today
-    let presentToday = 0;
-    // attendance array contains records for the month; count present for today
-    attendance.forEach(r => {
+     let presentToday = 0;
+     attendance.forEach(r => {
       if (r.date === todayStr && r.status === 'Present') presentToday++;
     });
 
-    // Department stats
-    const deptCounts: Record<string, number> = {};
+     const deptCounts: Record<string, number> = {};
     employees.forEach(e => {
       const key = e.department ?? 'Unknown';
       deptCounts[key] = (deptCounts[key] || 0) + 1;
@@ -107,12 +102,10 @@ export const Dashboard: React.FC = () => {
     };
   }, [employees, attendance, todayStr]);
 
-  // Build a simple weekly trend (Mon..Sun) using attendance records for the current week
-  const weeklyTrend = useMemo(() => {
+   const weeklyTrend = useMemo(() => {
     const now = new Date();
-    // find Monday of current week
-    const day = now.getDay(); // 0 Sun .. 6 Sat
-    const diffToMonday = (day + 6) % 7; // days back to Monday
+     const day = now.getDay(); 
+    const diffToMonday = (day + 6) % 7; 
     const monday = new Date(now);
     monday.setDate(now.getDate() - diffToMonday);
 
@@ -123,8 +116,7 @@ export const Dashboard: React.FC = () => {
       days.push({ dayLabel: d.toLocaleDateString('en-IN', { weekday: 'short' }), date: d.toISOString().split('T')[0] });
     }
 
-    // count present per day
-    const data = days.map(d => {
+     const data = days.map(d => {
       const count = attendance.filter(a => a.date === d.date && a.status === 'Present').length;
       return { day: d.dayLabel, count };
     });

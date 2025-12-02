@@ -31,10 +31,10 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
       }
 
       const data = await res.json();
-      // expect { token, user } from backend
+     
       if (data?.token) {
         localStorage.setItem(TOKEN_KEY, data.token);
-        // optionally store user info
+        
         if (data.user) localStorage.setItem('lomaa_user', JSON.stringify(data.user));
         onLogin();
       } else {

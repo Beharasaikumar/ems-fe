@@ -1,5 +1,4 @@
-// src/components/AddEmployeeModal.tsx
-import React, { useState, useEffect } from 'react';
+ import React, { useState, useEffect } from 'react';
  import { Employee } from '../types';
 import { X, Save, Calculator, Wallet, Building2, CreditCard } from 'lucide-react';
 
