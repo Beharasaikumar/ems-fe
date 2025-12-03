@@ -81,10 +81,16 @@ export const Dashboard: React.FC = () => {
   const stats = useMemo(() => {
     const totalEmployees = employees.length;
 
+     const todaysAttendanceIds = new Set<string>();
      let presentToday = 0;
      attendance.forEach(r => {
-      if (r.date === todayStr && r.status === 'Present') presentToday++;
+      if (r.date === todayStr){
+        todaysAttendanceIds.add(r.employeeId);
+        if( r.status === 'Present') presentToday++;
+      }
     });
+
+    const pendingActions = Math.max(0, totalEmployees - todaysAttendanceIds.size);
 
      const deptCounts: Record<string, number> = {};
     employees.forEach(e => {
@@ -98,7 +104,8 @@ export const Dashboard: React.FC = () => {
       totalEmployees,
       presentToday,
       attendanceRate: totalEmployees ? Math.round((presentToday / totalEmployees) * 100) : 0,
-      deptData
+      deptData,
+      pendingActions
     };
   }, [employees, attendance, todayStr]);
 
@@ -173,8 +180,8 @@ export const Dashboard: React.FC = () => {
 
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium text-slate-500">Pending Actions</p>
-            <h3 className="text-3xl font-bold text-slate-800 mt-1">2</h3>
+            <p className="text-sm font-medium text-slate-500">Pending Attendance</p>
+            <h3 className="text-3xl font-bold text-slate-800 mt-1">{stats.pendingActions}</h3>
           </div>
           <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center">
             <AlertCircle size={24} />

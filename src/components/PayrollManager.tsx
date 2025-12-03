@@ -125,7 +125,7 @@ export const PayrollManager: React.FC = () => {
   async function downloadPdf(payslip: Payslip) {
     try {
        const token = getToken();
-      const resp = await fetch(`${API_BASE}/payroll/pdf/${payslip.id}`, {
+      const resp = await fetch(`${API_BASE}/payroll/pdf-html/${payslip.id}`, {
         method: 'POST',
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
@@ -152,7 +152,7 @@ async function emailPayslip(payslip: Payslip, to?: string) {
   try {
     const recipient = to ?? prompt('Send payslip to (email):', '');
     if (!recipient) return;
-    await apiFetch(`/payroll/email/${payslip.id}`, { method: 'POST', body: JSON.stringify({ to: recipient }) });
+    await apiFetch(`/payroll/email-html/${payslip.id}`, { method: 'POST', body: JSON.stringify({ to: recipient }) });
     alert('Email request sent (if SMTP configured).');
   } catch (err: any) {
     console.error('Email failed', err);
@@ -425,9 +425,7 @@ async function fetchLatestPayslips() {
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => {
-                              // open in payslip view (if we have an employee object)
-                              // if resolved is undefined, create minimal employee object
-                              const emp = resolved ?? { id: (slip as any).employeeId ?? (slip as any).empId ?? 'unknown', name: (slip as any).employeeName ?? 'Unknown' } as Employee;
+                               const emp = resolved ?? { id: (slip as any).employeeId ?? (slip as any).empId ?? 'unknown', name: (slip as any).employeeName ?? 'Unknown' } as Employee;
                               setLatestOpen(false);
                               setSelectedPayslip({ emp, slip });
                             }}

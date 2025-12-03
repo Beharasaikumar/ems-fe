@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Employee, Payslip } from '../types';
-import { X, Download, Share2, Mail, CheckCircle, Leaf } from 'lucide-react';
-
+import { X, Download, Share2, Mail, CheckCircle, Leaf, Loader2 } from 'lucide-react';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 interface PayslipViewProps {
-
   employee?: Employee;
   payslip: Payslip | { id: string; employeeId?: string; month?: string; year?: number; netSalary?: number; };
   onClose: () => void;
@@ -19,6 +19,8 @@ export const PayslipView: React.FC<PayslipViewProps> = ({ employee: initialEmplo
   const [loading, setLoading] = useState<boolean>(!!initialPayslip && !!(initialPayslip as any).id);
   const [sending, setSending] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [statusMsg, setStatusMsg] = useState('');
 
   const payslipId = (initialPayslip as any)?.id;
 
@@ -128,35 +130,275 @@ export const PayslipView: React.FC<PayslipViewProps> = ({ employee: initialEmplo
   const mailtoUrl = `mailto:${employee?.email ?? ''}?subject=${encodeURIComponent(`Payslip for ${employee?.name ?? ''}`)}&body=${encodeURIComponent(getShareText())}`;
 
   async function downloadPdfFromServer() {
+    if (!payslipId) return alert('Payslip id missing');
+    setDownloading(true);
     try {
-      if (!payslipId) return alert('Payslip id missing');
-      setDownloading(true);
       const token = getToken();
-      const res = await fetch(`${API_BASE}/payroll/pdf/${encodeURIComponent(payslipId)}`, {
+      const res = await fetch(`${API_BASE}/payroll/pdf-html/${encodeURIComponent(payslipId)}`, {
         method: 'POST',
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
+
+      // If server returned a non-OK status, try to read error text/json and show it
       if (!res.ok) {
-        const txt = await res.text().catch(() => '');
-        throw new Error(txt || `PDF generation failed (${res.status})`);
+        const contentType = res.headers.get('content-type') || '';
+        let bodyText = '';
+        if (contentType.includes('application/json')) {
+          const json = await res.json().catch(() => null);
+          bodyText = json ? (json.message || JSON.stringify(json)) : await res.text().catch(() => '');
+        } else {
+          bodyText = await res.text().catch(() => '');
+        }
+        throw new Error(bodyText || `PDF generation failed (${res.status})`);
       }
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
+
+      // Ensure we read as binary
+      const ab = await res.arrayBuffer();
+      if (!ab || ab.byteLength === 0) throw new Error('Empty response from server');
+
+      // Quick magic-bytes check for `%PDF-`
+      const header = new Uint8Array(ab.slice(0, 5));
+      const headerStr = String.fromCharCode(...header);
+      if (!headerStr.startsWith('%PDF')) {
+        // It isn't a PDF — convert to text and show helpful message
+        const text = new TextDecoder().decode(ab);
+        console.error('Server returned non-PDF body:', text);
+        throw new Error('Server returned non-PDF data. Check server logs or SMTP config.');
+      }
+
+      const blob = new Blob([ab], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const safeMonth = (payload.month ?? 'month').toString().replace('/', '-');
+      const fileName = `payslip-${payload.employeeId ?? 'emp'}-${safeMonth}.pdf`;
+
       const a = document.createElement('a');
       a.href = url;
-      const safeMonth = (payload.month ?? 'month').replace('/', '-');
-      a.download = `payslip-${payload.employeeId ?? 'emp'}-${safeMonth}.pdf`;
+      a.download = fileName;
       document.body.appendChild(a);
       a.click();
       a.remove();
-      window.URL.revokeObjectURL(url);
+      URL.revokeObjectURL(url);
+
+      setStatusMsg('Downloaded!');
     } catch (err: any) {
       console.error('Download PDF failed', err);
-      alert(err?.message ?? 'Failed to download PDF');
+      alert(err?.message || 'Failed to download PDF. Check server logs.');
     } finally {
       setDownloading(false);
+      setTimeout(() => setStatusMsg(''), 3000);
     }
   }
+
+
+  const generatePDF = async (): Promise<Blob | null> => {
+    const element = document.getElementById('printable-area');
+    if (!element) return null;
+
+    try {
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        backgroundColor: '#ffffff',
+        logging: false,
+        useCORS: true,
+        allowTaint: true
+      });
+
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      const imgWidth = 210; // A4 width mm
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+      return pdf.output('blob');
+    } catch (error) {
+      console.error('PDF Generation failed', error);
+      return null;
+    }
+  };
+
+  const fallbackShare = (action: 'WHATSAPP' | 'EMAIL', fileName: string, pdfBlob: Blob) => {
+    const url = URL.createObjectURL(pdfBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    const text = `Please find the attached payslip for ${employee?.name ?? payload.employeeName ?? ''}.`;
+    let appUrl = '';
+    if (action === 'WHATSAPP') {
+      appUrl = `https://wa.me/?text=${encodeURIComponent(text + " (PDF Downloaded)")}`;
+    } else {
+      appUrl = `mailto:${employee?.email ?? ''}?subject=${encodeURIComponent(`Payslip for ${employee?.name ?? ''}`)}&body=${encodeURIComponent(text)}`;
+    }
+    window.open(appUrl, '_blank');
+    setStatusMsg('PDF Downloaded. Please attach to message.');
+  };
+
+  const handleAction = async (action: 'WHATSAPP' | 'EMAIL' | 'DOWNLOAD') => {
+    setIsGenerating(true);
+    setStatusMsg(action === 'DOWNLOAD' ? 'Preparing download...' : 'Processing...');
+
+    // allow UI to update
+    await new Promise(resolve => setTimeout(resolve, 120));
+
+    if (action === 'DOWNLOAD') {
+      if (payslipId) {
+        try {
+          await downloadPdfFromServer();
+          setStatusMsg('Downloaded!');
+        } catch (err) {
+          const pdfBlob = await generatePDF();
+          if (pdfBlob) {
+            const fileName = `Payslip_${(employee?.name ?? payload.employeeName ?? 'employee').toString().replace(/\s+/g, '_')}_${(payload.month ?? 'month').toString().replace('/', '-')}.pdf`;
+            const url = URL.createObjectURL(pdfBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = fileName;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(url);
+            setStatusMsg('Downloaded (client fallback)');
+          } else {
+            setStatusMsg('Failed to download');
+          }
+        } finally {
+          setIsGenerating(false);
+          setTimeout(() => setStatusMsg(''), 3000);
+        }
+        return;
+      } else {
+        // no payslipId - generate locally
+        const pdfBlob = await generatePDF();
+        if (!pdfBlob) {
+          setIsGenerating(false);
+          setStatusMsg('Failed to generate PDF');
+          setTimeout(() => setStatusMsg(''), 3000);
+          return;
+        }
+        const fileName = `Payslip_${(employee?.name ?? payload.employeeName ?? 'employee').toString().replace(/\s+/g, '_')}_${(payload.month ?? 'month').toString().replace('/', '-')}.pdf`;
+        const url = URL.createObjectURL(pdfBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+        setIsGenerating(false);
+        setStatusMsg('Downloaded!');
+        setTimeout(() => setStatusMsg(''), 3000);
+        return;
+      }
+    }
+
+    if (action === 'EMAIL') {
+      const defaultTo = employee?.email ?? '';
+      const to = defaultTo ?? prompt('Send payslip to (email):', '') ?? '';
+      if (!to) {
+        setIsGenerating(false);
+        setStatusMsg('');
+        return;
+      }
+
+      if (payslipId) {
+        try {
+          setStatusMsg('Requesting server to send email...');
+          const token = getToken();
+          const res = await fetch(`${API_BASE}/payroll/email-html/${encodeURIComponent(payslipId)}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { Authorization: `Bearer ${token}` } : {})
+            },
+            body: JSON.stringify({ to })
+          });
+
+
+          const contentType = res.headers.get('content-type') || '';
+          if (res.ok) {
+            if (contentType.includes('application/json')) {
+              const json = await res.json().catch(() => ({ message: 'Email request sent' }));
+              setStatusMsg(json.message || 'Email queued/sent (server)');
+            } else {
+              setStatusMsg('Email request sent (server responded with non-JSON).');
+            }
+            setIsGenerating(false);
+            setTimeout(() => setStatusMsg(''), 4000);
+            return;
+          } else {
+            let errMsg = `Server error (${res.status})`;
+            if (contentType.includes('application/json')) {
+              const errJson = await res.json().catch(() => null);
+              if (errJson) errMsg = errJson.message || JSON.stringify(errJson);
+            } else {
+              const text = await res.text().catch(() => '');
+              if (text) errMsg = text;
+            }
+            console.warn('Server email failed:', errMsg);
+            setStatusMsg('Server email failed, falling back to manual attach: ' + (errMsg.slice ? errMsg.slice(0, 120) : errMsg));
+          }
+        } catch (err: any) {
+          console.error('Server email request failed', err);
+          setStatusMsg('Server email failed — falling back to manual attach');
+        }
+      }
+
+      const pdfBlob = await generatePDF();
+      if (!pdfBlob) {
+        setIsGenerating(false);
+        setStatusMsg('Failed to generate PDF for fallback');
+        setTimeout(() => setStatusMsg(''), 3000);
+        return;
+      }
+      const fileName = `Payslip_${(employee?.name ?? payload.employeeName ?? 'employee').toString().replace(/\s+/g, '_')}_${(payload.month ?? 'month').toString().replace('/', '-')}.pdf`;
+      fallbackShare('EMAIL', fileName, pdfBlob);
+
+      setIsGenerating(false);
+      setTimeout(() => setStatusMsg(''), 4000);
+      return;
+    }
+
+    if (action === 'WHATSAPP') {
+      const pdfBlob = await generatePDF();
+      if (!pdfBlob) {
+        window.open(whatsappUrl, '_blank');
+        setIsGenerating(false);
+        setStatusMsg('Opened WhatsApp (text) — image unavailable');
+        setTimeout(() => setStatusMsg(''), 3000);
+        return;
+      }
+
+      const fileName = `Payslip_${(employee?.name ?? payload.employeeName ?? 'employee').toString().replace(/\s+/g, '_')}_${(payload.month ?? 'month').toString().replace('/', '-')}.pdf`;
+      const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
+
+      if (navigator && (navigator as any).canShare && (navigator as any).canShare({ files: [file] })) {
+        try {
+          await (navigator as any).share({
+            files: [file],
+            title: 'Payslip',
+            text: `Payslip for ${employee?.name ?? payload.employeeName ?? ''} - ${monthLabel}`
+          });
+          setStatusMsg('Shared successfully');
+        } catch (error) {
+          console.log('Share cancelled or failed', error);
+          fallbackShare('WHATSAPP', fileName, pdfBlob);
+        }
+      } else {
+        fallbackShare('WHATSAPP', fileName, pdfBlob);
+      }
+
+      setIsGenerating(false);
+      setTimeout(() => setStatusMsg(''), 3000);
+    }
+  };
 
   // async function sendPayslipEmail() {
   //   try {
@@ -201,6 +443,13 @@ export const PayslipView: React.FC<PayslipViewProps> = ({ employee: initialEmplo
         </div>
 
         <div className="p-8 overflow-y-auto bg-slate-50 flex-1">
+          {isGenerating && (
+            <div className="absolute inset-0 bg-white/80 z-20 flex items-center justify-center flex-col gap-2">
+              <Loader2 className="animate-spin text-emerald-600" size={40} />
+              <p className="font-semibold text-slate-700">{statusMsg}</p>
+            </div>
+          )}
+
           {loading ? (
             <div className="text-center py-12">Loading payslip…</div>
           ) : (
@@ -208,10 +457,23 @@ export const PayslipView: React.FC<PayslipViewProps> = ({ employee: initialEmplo
               <div className="text-center border-b border-slate-200 pb-6 mb-6">
                 <div className="flex items-center justify-center gap-3 mb-2">
                   <div className="w-10 h-10 rounded-full bg-slate-900 flex items-center justify-center shadow-lg">
-                    <div className="relative">
-                      <span className="text-xl font-bold text-white">L</span>
-                      <Leaf className="absolute -top-1 -right-2 text-emerald-500 w-3 h-3 fill-emerald-500" />
+                    <div className="relative w-10 h-10">
+
+                      <img
+                        src="/logo.png"
+                        alt="Company Logo"
+                        className="absolute inset-0 w-full h-full object-contain rounded-full"
+                      />
+
+                      {/* <>
+                        <span className="absolute inset-0 flex items-center justify-center text-xl font-bold text-white">
+                          L
+                        </span>
+                        <Leaf className="absolute -top-1 -right-1 text-emerald-500 w-3 h-3 fill-emerald-500" />
+                      </> */}
+
                     </div>
+
                   </div>
                   <div className="text-left">
                     <h1 className="text-2xl font-bold text-slate-800 leading-none">Lomaa</h1>
@@ -307,7 +569,31 @@ export const PayslipView: React.FC<PayslipViewProps> = ({ employee: initialEmplo
         </div>
 
         <div className="p-6 bg-white border-t border-slate-200 flex gap-4 justify-center shrink-0">
-          <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-6 py-2.5 bg-green-500 hover:bg-green-600 text-white rounded-lg font-medium transition-colors">
+          <button
+            onClick={() => handleAction('WHATSAPP')}
+            disabled={isGenerating}
+            className="flex items-center gap-2 px-6 py-2.5 bg-green-500 hover:bg-green-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+          >
+            <Share2 size={18} /> WhatsApp PDF
+          </button>
+
+          <button
+            onClick={() => handleAction('EMAIL')}
+            disabled={isGenerating}
+            className="flex items-center gap-2 px-6 py-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+          >
+            <Mail size={18} /> Email PDF
+          </button>
+
+          <button
+            onClick={() => handleAction('DOWNLOAD')}
+            disabled={isGenerating}
+            className="flex items-center gap-2 px-6 py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+          >
+            <Download size={18} /> Download (PDF)
+          </button>
+
+          {/* <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-6 py-2.5 bg-green-500 hover:bg-green-600 text-white rounded-lg font-medium transition-colors">
             <Share2 size={18} /> WhatsApp
           </a>
 
@@ -317,7 +603,7 @@ export const PayslipView: React.FC<PayslipViewProps> = ({ employee: initialEmplo
 
           <button onClick={downloadPdfFromServer} disabled={downloading} className="flex items-center gap-2 px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium transition-colors disabled:opacity-60">
             <Download size={18} /> {downloading ? 'Preparing...' : 'Download (PDF)'}
-          </button>
+          </button> */}
 
           {/* <button onClick={sendPayslipEmail} disabled={sending} className="flex items-center gap-2 px-6 py-2.5 bg-white border border-slate-100 text-slate-700 rounded-lg font-medium hover:bg-slate-50 transition-colors disabled:opacity-60">
             <Mail size={18} /> {sending ? 'Sending…' : 'Send Email'}
