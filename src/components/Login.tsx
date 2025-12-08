@@ -3,12 +3,14 @@ import { Lock, User, Leaf } from 'lucide-react';
 
 interface LoginProps {
   onLogin: () => void;
+  onGoSignup: () => void;
+  onGoForgot: () => void;
 }
 
 const API_BASE = process.env.REACT_APP_API_URL ?? 'http://localhost:4000/api';
 const TOKEN_KEY = 'lomaa_token';
 
-export const Login: React.FC<LoginProps> = ({ onLogin }) => {
+export const Login: React.FC<LoginProps> = ({ onLogin, onGoSignup, onGoForgot }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -26,15 +28,16 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
       });
 
       if (!res.ok) {
-        const bodyText = await res.text();
-        throw new Error(bodyText || `Login failed (${res.status})`);
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || `Login failed (${res.status})`);
+
       }
 
       const data = await res.json();
-     
+
       if (data?.token) {
         localStorage.setItem(TOKEN_KEY, data.token);
-        
+
         if (data.user) localStorage.setItem('lomaa_user', JSON.stringify(data.user));
         onLogin();
       } else {
@@ -53,16 +56,15 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col border border-slate-100">
         <div className="bg-slate-900 p-8 text-center relative overflow-hidden">
           <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 via-green-500 to-teal-500"></div>
-
-          <div className="w-16 h-16 bg-white rounded-full mx-auto flex items-center justify-center mb-4 shadow-lg">
-            <div className="relative">
-              <span className="text-3xl font-bold text-slate-900">L</span>
-              <Leaf className="absolute -top-2 -right-3 text-emerald-500 w-5 h-5 fill-emerald-500" />
+          <div className="flex items-center justify-center gap-3 mb-2">
+            <div className="relative w-[200px] h-[80px] rounded-full">
+              <img
+                src="/logo.png"
+                alt="Company Logo"
+                className="w-full h-full object-contain rounded-full"
+              />
             </div>
           </div>
-
-          <h2 className="text-2xl font-bold text-white tracking-wide">Lomaa</h2>
-          <p className="text-xs font-bold text-emerald-400 tracking-[0.2em] mt-1">IT SOLUTIONS</p>
           <p className="text-slate-400 mt-4 text-sm">Sign in to Employee Portal</p>
         </div>
 
@@ -113,9 +115,26 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
             {loading ? 'Signing in…' : 'Login to Dashboard'}
           </button>
 
-          <p className="text-center text-xs text-slate-400 mt-4">
-            Use <b>admin</b> / <b>admin</b> to access the demo.
-          </p>
+          <div className="text-center text-sm mt-4 space-y-2">
+            <button
+              type="button"
+              onClick={onGoForgot}
+              className="text-emerald-600 font-medium"
+            >
+              Forgot Password?
+            </button>
+
+            <p>
+              Don’t have an account?{' '}
+              <button
+                type="button"
+                onClick={onGoSignup}
+                className="text-emerald-600 font-semibold"
+              >
+                Sign Up
+              </button>
+            </p>
+          </div>
         </form>
       </div>
     </div>

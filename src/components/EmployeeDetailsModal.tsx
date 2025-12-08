@@ -67,21 +67,21 @@ export const EmployeeDetailsModal: React.FC<EmployeeDetailsModalProps> = ({ empl
     await fetchEmployee(idToUse);
   }
 
-  async function handleDelete() {
-    if (!idToUse) return;
-    if (!confirm('Delete this employee? This action cannot be undone.')) return;
-    try {
-      setDeleting(true);
-      await apiFetch(`/employees/${idToUse}`, { method: 'DELETE' });
-      onDeleted?.(idToUse);
-      onClose();
-    } catch (err: any) {
-      console.error('Delete failed', err);
-      alert(err?.message ?? 'Delete failed');
-    } finally {
-      setDeleting(false);
-    }
-  }
+  // async function handleDelete() {
+  //   if (!idToUse) return;
+  //   if (!confirm('Delete this employee? This action cannot be undone.')) return;
+  //   try {
+  //     setDeleting(true);
+  //     await apiFetch(`/employees/${idToUse}`, { method: 'DELETE' });
+  //     onDeleted?.(idToUse);
+  //     onClose();
+  //   } catch (err: any) {
+  //     console.error('Delete failed', err);
+  //     alert(err?.message ?? 'Delete failed');
+  //   } finally {
+  //     setDeleting(false);
+  //   }
+  // }
 
   if (!employee && !loading) return null; 
 
@@ -106,14 +106,14 @@ export const EmployeeDetailsModal: React.FC<EmployeeDetailsModalProps> = ({ empl
             <button onClick={handleRefresh} title="Refresh" className="p-2 hover:bg-slate-800 rounded-md transition-colors text-slate-300 hover:text-white">
               <RefreshCw size={16} />
             </button>
-            <button
+            {/* <button
               onClick={handleDelete}
               disabled={deleting}
               title="Delete Employee"
               className="p-2 hover:bg-red-700 rounded-md transition-colors text-red-200 hover:text-white"
             >
               <Trash2 size={16} />
-            </button>
+            </button> */}
             <button onClick={onClose} className="p-2 hover:bg-slate-800 rounded-full transition-colors relative z-10 text-slate-400 hover:text-white">
               <X size={20} />
             </button>

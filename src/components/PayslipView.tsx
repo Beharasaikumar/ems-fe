@@ -456,31 +456,14 @@ export const PayslipView: React.FC<PayslipViewProps> = ({ employee: initialEmplo
             <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-8 max-w-2xl mx-auto" id="printable-area">
               <div className="text-center border-b border-slate-200 pb-6 mb-6">
                 <div className="flex items-center justify-center gap-3 mb-2">
-                  <div className="w-10 h-10 rounded-full bg-slate-900 flex items-center justify-center shadow-lg">
-                    <div className="relative w-10 h-10">
-
+                     <div className="relative w-[200px] h-[80px] rounded-full">
                       <img
-                        src="/logo.png"
+                        src="/logo.svg"
                         alt="Company Logo"
-                        className="absolute inset-0 w-full h-full object-contain rounded-full"
+                        className="w-full h-full object-contain rounded-full"
                       />
-
-                      {/* <>
-                        <span className="absolute inset-0 flex items-center justify-center text-xl font-bold text-white">
-                          L
-                        </span>
-                        <Leaf className="absolute -top-1 -right-1 text-emerald-500 w-3 h-3 fill-emerald-500" />
-                      </> */}
-
-                    </div>
-
-                  </div>
-                  <div className="text-left">
-                    <h1 className="text-2xl font-bold text-slate-800 leading-none">Lomaa</h1>
-                    <p className="text-[10px] text-slate-500 font-bold tracking-widest uppercase">IT SOLUTIONS</p>
-                  </div>
+                  </div> 
                 </div>
-                <p className="text-slate-400 text-xs font-semibold tracking-wide uppercase">India | USA | Australia | Ireland</p>
               </div>
 
               <div className="grid grid-cols-2 gap-y-4 gap-x-8 mb-8 text-sm">

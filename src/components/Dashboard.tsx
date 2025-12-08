@@ -4,7 +4,8 @@ import {
   Users, 
   Calendar, 
   TrendingUp, 
-  AlertCircle 
+  AlertCircle, 
+  Download
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -18,6 +19,7 @@ import {
   Pie,
   Cell
 } from 'recharts';
+import { exportToCSV } from '../utils/utils';
 
 type AttendanceRecord = { id: string; employeeId: string; date: string; status: string };
 
@@ -109,6 +111,17 @@ export const Dashboard: React.FC = () => {
     };
   }, [employees, attendance, todayStr]);
 
+   const handleExport = () => {
+    const data = [
+      { Metric: 'Total Employees', Value: stats.totalEmployees },
+      { Metric: 'Present Today', Value: stats.presentToday },
+      { Metric: 'Attendance Rate', Value: `${stats.attendanceRate}%` },
+      { Metric: 'Pending Attendance', Value: stats.pendingActions },
+      ...stats.deptData.map(d => ({ Metric: `Dept: ${d.name}`, Value: d.value }))
+    ];
+    exportToCSV(data, `Dashboard_Stats_${new Date().toISOString().split('T')[0]}.csv`);
+  };
+
    const weeklyTrend = useMemo(() => {
     const now = new Date();
      const day = now.getDay(); 
@@ -147,6 +160,16 @@ export const Dashboard: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-fade-in">
+        <div className="flex justify-between items-center mb-2">
+        <h2 className="text-2xl font-bold text-slate-800">Overview</h2>
+        <button 
+          onClick={handleExport}
+          className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors text-sm font-medium shadow-sm"
+        >
+          <Download size={16} /> Export Overview
+        </button>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex items-center justify-between">
           <div>
