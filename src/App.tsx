@@ -48,18 +48,18 @@ const App: React.FC = () => {
 
 
   useEffect(() => {
-  const path = window.location.pathname;
+    const path = window.location.pathname;
 
-  if (path.startsWith('/reset-password/')) {
-    const token = path.split('/reset-password/')[1];
+    if (path.startsWith('/reset-password/')) {
+      const token = path.split('/reset-password/')[1];
 
-    if (token) {
-      setResetToken(token);
-      setAuthPage('reset');
-      setIsAuthenticated(false); // force auth screen
+      if (token) {
+        setResetToken(token);
+        setAuthPage('reset');
+        setIsAuthenticated(false); // force auth screen
+      }
     }
-  }
-}, []);
+  }, []);
 
 
   // --- API helpers ---
@@ -160,16 +160,21 @@ const App: React.FC = () => {
         console.warn('Update employee API failed', err);
       }
     } else {
-      const newId = `EMP${String(employees.length + 1).padStart(3, '0')}`;
-      const newEmployee: Employee = { ...empData, id: newId };
+      const newEmployee: Employee = empData as Employee; // ✅ KEEP USER ID (EMP777)
+
       setEmployees(prev => [...prev, newEmployee]);
-      setAttendance(prev => [...prev, generateMockAttendance(newId)]);
+      setAttendance(prev => [...prev, generateMockAttendance(newEmployee.id)]);
+
       try {
-        await apiFetch('/employees', { method: 'POST', body: JSON.stringify(newEmployee) });
+        await apiFetch('/employees', {
+          method: 'POST',
+          body: JSON.stringify(newEmployee), // ✅ SEND EMP777 EXACTLY
+        });
       } catch (err) {
         console.warn('Create employee API failed', err);
       }
     }
+
     setIsFormModalOpen(false);
   };
 

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Employee, Payslip } from '../types';
-import { IndianRupee, Eye, CalendarClock, Search, Mail, X, Download, FileText, CalendarRange } from 'lucide-react';
+import { IndianRupee, Eye, CalendarClock, Search, Mail, X, Download, FileText, CalendarRange, ChevronLeft, ChevronRight } from 'lucide-react';
 import { PayslipView } from './PayslipView';
 import { FilteredEmployeeSearch } from '../ui/FilteredEmployeeSearch';
 import { exportToCSV } from '../utils/utils';
@@ -28,15 +28,28 @@ export const PayrollManager: React.FC = () => {
   const [latestOpen, setLatestOpen] = useState(false);
   const [latestLoading, setLatestLoading] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
+  const [selectedPeriod, setSelectedPeriod] = useState<Date>(new Date());
 
-  const today = new Date();
-  const monthPrefix = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+  const formatPeriodLabel = (d: Date) =>
+    d.toLocaleString('default', { month: 'short', year: 'numeric' });
+
+  const getPeriodPrefix = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+
+  const shiftPeriod = (months: number) => {
+    const newDate = new Date(selectedPeriod);
+    newDate.setMonth(newDate.getMonth() + months);
+    setSelectedPeriod(newDate);
+  };
 
   useEffect(() => {
     loadEmployees();
-    loadAttendanceForMonth(monthPrefix);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    loadAttendanceForMonth(getPeriodPrefix(selectedPeriod));
   }, []);
+
+  useEffect(() => {
+    loadAttendanceForMonth(getPeriodPrefix(selectedPeriod));
+  }, [selectedPeriod]);
 
   async function apiFetch(path: string, opts: RequestInit = {}) {
     const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(opts.headers as any ?? {}) };
@@ -98,9 +111,23 @@ export const PayrollManager: React.FC = () => {
           return r.data as Payslip;
         }
         if (r.data && typeof r.data === 'string') {
-          try { return JSON.parse(r.data) as Payslip; } catch { return r as Payslip; }
+          try {
+            return JSON.parse(r.data) as Payslip;
+
+          } catch {
+            return r as Payslip;
+          }
         }
         return (r as unknown) as Payslip;
+      });
+      parsed.forEach(p => {
+        (p as any).generatedDateNormalized = (p as any).generatedDate ? new Date((p as any).generatedDate).toISOString() : null;
+      });
+
+      parsed.sort((a, b) => {
+        const ta = (a as any).generatedDateNormalized ? Date.parse((a as any).generatedDateNormalized) : 0;
+        const tb = (b as any).generatedDateNormalized ? Date.parse((b as any).generatedDateNormalized) : 0;
+        return tb - ta;
       });
       setEmployeePayslips(prev => ({ ...prev, [employeeId]: parsed }));
       return parsed;
@@ -114,8 +141,9 @@ export const PayrollManager: React.FC = () => {
   async function generatePayslip(emp: Employee) {
     setLoadingId(emp.id);
     try {
-      const payload = {};
-      const result = await apiFetch(`/payroll/generate/${emp.id}`, { method: 'POST', body: JSON.stringify(payload) }) as Payslip;
+      // const payload = {};
+      const monthPrefix = getPeriodPrefix(selectedPeriod);
+      const result = await apiFetch(`/payroll/generate/${emp.id}`, { method: 'POST', headers:{ 'Content-Type': 'application/json'}, body: JSON.stringify({month: monthPrefix}) }) as Payslip;
       setGeneratedPayslips(prev => ({ ...prev, [emp.id]: result }));
       setEmployeePayslips(prev => ({ ...prev, [emp.id]: [result, ...(prev[emp.id] || [])] }));
     } catch (err: any) {
@@ -152,17 +180,17 @@ export const PayrollManager: React.FC = () => {
     }
   }
 
-  async function emailPayslip(payslip: Payslip, to?: string) {
-    try {
-      const recipient = to ?? prompt('Send payslip to (email):', '');
-      if (!recipient) return;
-      await apiFetch(`/payroll/email-html/${payslip.id}`, { method: 'POST', body: JSON.stringify({ to: recipient }) });
-      alert('Email request sent.');
-    } catch (err: any) {
-      console.error('Email failed', err);
-      alert('Failed to send email: ' + (err?.message ?? ''));
-    }
-  }
+  // async function emailPayslip(payslip: Payslip, to?: string) {
+  //   try {
+  //     const recipient = to ?? prompt('Send payslip to (email):', '');
+  //     if (!recipient) return;
+  //     await apiFetch(`/payroll/email-html/${payslip.id}`, { method: 'POST', body: JSON.stringify({ to: recipient }) });
+  //     alert('Email request sent.');
+  //   } catch (err: any) {
+  //     console.error('Email failed', err);
+  //     alert('Failed to send email: ' + (err?.message ?? ''));
+  //   }
+  // }
 
   async function fetchLatestPayslips() {
     setLatestLoading(true);
@@ -218,7 +246,8 @@ export const PayrollManager: React.FC = () => {
     return undefined;
   }
 
-   const handleExport = () => {
+  const handleExport = () => {
+    const currentMonthStr = getPeriodPrefix(selectedPeriod);
     const data = filteredEmployees.map(emp => {
       const slip = generatedPayslips[emp.id];
       const fixedGross = (emp.basicSalary ?? 0) + (emp.hra ?? 0) + (emp.da ?? 0) + (emp.specialAllowance ?? 0);
@@ -226,23 +255,26 @@ export const PayrollManager: React.FC = () => {
         EmployeeID: emp.id,
         Name: emp.name,
         Department: emp.department,
-        FixedBasic: emp.basicSalary,
-        FixedGross: fixedGross,
+        Month: currentMonthStr,
+        MonthlyGross: emp.monthlyGrossSalary,
         Generated: slip ? 'Yes' : 'No',
         PaidDays: slip ? Math.round((slip.attendancePercentage / 100) * 30) : '-',
         EarnedBasic: slip ? slip.earnings.basic : '-',
         EarnedGross: slip ? slip.earnings.gross : '-',
+        PF_Deduction: slip ? slip.deductions.pf : '-',
+        ESI_Deduction: slip ? slip.deductions.esi : '-',
         TotalDeductions: slip ? slip.deductions.totalDeductions : '-',
         NetPayable: slip ? slip.netSalary : '-'
       };
     });
-    exportToCSV(data, `Payroll_Summary_${new Date().toISOString().split('T')[0]}.csv`);
+    exportToCSV(data, `Payroll_Summary_${currentMonthStr}.csv`);
   };
 
   const handleExportMonthlyReport = () => {
+    const currentMonthStr = getPeriodPrefix(selectedPeriod);
     const data = filteredEmployees.map(emp => {
       const slip = generatedPayslips[emp.id];
-      
+
       const baseInfo = {
         'Employee ID': emp.id,
         'Name': emp.name,
@@ -252,28 +284,30 @@ export const PayrollManager: React.FC = () => {
       };
 
       if (!slip) {
-         return {
-           ...baseInfo,
-           'Status': 'Pending Generation',
-           'Days Paid': '-',
-           'Basic': '-',
-           'HRA': '-',
-           'DA': '-',
-           'Special Allow.': '-',
-           'GROSS EARNINGS': '-',
-           'PF': '-',
-           'ESI': '-',
-           'Prof. Tax': '-',
-           'TDS': '-',
-           'TOTAL DEDUCTIONS': '-',
-           'NET PAYABLE': '-'
-         };
+        return {
+          ...baseInfo,
+          'Status': 'Pending Generation',
+          'Days Paid': '-',
+          'Monthly Gross': emp.monthlyGrossSalary,
+          'Basic': '-',
+          'HRA': '-',
+          'DA': '-',
+          'Special Allow.': '-',
+          'GROSS EARNINGS': '-',
+          'PF': '-',
+          'ESI': '-',
+          'Prof. Tax': '-',
+          'TDS': '-',
+          'TOTAL DEDUCTIONS': '-',
+          'NET PAYABLE': '-'
+        };
       }
 
       return {
         ...baseInfo,
         'Status': 'Generated',
         'Days Paid': Math.round((slip.attendancePercentage / 100) * 30),
+        'Monthly Gross': emp.monthlyGrossSalary,
         'Basic': slip.earnings.basic,
         'HRA': slip.earnings.hra,
         'DA': slip.earnings.da,
@@ -287,7 +321,7 @@ export const PayrollManager: React.FC = () => {
         'NET PAYABLE': slip.netSalary
       };
     });
-    exportToCSV(data, `Monthly_Payroll_Report_${new Date().toISOString().slice(0, 7)}.csv`);
+    exportToCSV(data, `Monthly_Payroll_Report_${currentMonthStr}.csv`);
   };
 
   const handleRangeExport = (startMonth: string, endMonth: string) => {
@@ -301,85 +335,87 @@ export const PayrollManager: React.FC = () => {
       const year = current.getFullYear();
       const monthIndex = current.getMonth();
       const monthStr = `${year}-${String(monthIndex + 1).padStart(2, '0')}`;
-      
-      filteredEmployees.forEach(emp => {
-         // Reuse existing payroll calc approach by attempting to derive paidDays from existing payslips if present,
-         // otherwise approximate using employeePayslips history or attendance (maintaining original logic unchanged).
-         // For compatibility with prior version, if a generated payslip exists for that emp & month, use it; else fallback:
-         const existingSlip = (employeePayslips[emp.id] || []).find(s => s.month === monthStr) || (generatedPayslips[emp.id] && generatedPayslips[emp.id].month === monthStr ? generatedPayslips[emp.id] : undefined);
-         
-         if (existingSlip) {
-           const result = {
-             paidDays: Math.round((existingSlip.attendancePercentage / 100) * 30),
-             earnings: existingSlip.earnings,
-             deductions: existingSlip.deductions,
-             netSalary: existingSlip.netSalary
-           };
-           allData.push({
-             'Month': monthStr,
-             'Employee ID': emp.id,
-             'Name': emp.name,
-             'Department': emp.department,
-             'Days Paid': result.paidDays,
-             'Basic': result.earnings.basic,
-             'HRA': result.earnings.hra,
-             'DA': result.earnings.da,
-             'Special': result.earnings.specialAllowance,
-             'GROSS': result.earnings.gross,
-             'PF': result.deductions.pf,
-             'ESI': result.deductions.esi,
-             'PT': result.deductions.pt,
-             'TDS': result.deductions.tax,
-             'DEDUCTIONS': result.deductions.totalDeductions,
-             'NET SALARY': result.netSalary
-           });
-         } else {
-           // Fallback: try to approximate using attendance records for that month
-           const monthPrefixLocal = monthStr;
-           const monthRecords = attendance.filter(a => a.employeeId === emp.id && a.date.startsWith(monthPrefixLocal));
-           let paidDays = 0;
-           const totalDaysInMonth = new Date(year, monthIndex + 1, 0).getDate();
-           if (monthRecords.length === 0) {
-             paidDays = totalDaysInMonth;
-           } else {
-             monthRecords.forEach(r => {
-               if (r.status === 'Present') paidDays += 1;
-               if (r.status === 'Leave') paidDays += 1;
-               if (r.status === 'Half Day') paidDays += 0.5;
-             });
-           }
-           const basic = Math.round(((emp.basicSalary ?? 0) / totalDaysInMonth) * paidDays);
-           const hra = Math.round(((emp.hra ?? 0) / totalDaysInMonth) * paidDays);
-           const da = Math.round(((emp.da ?? 0) / totalDaysInMonth) * paidDays);
-           const special = Math.round(((emp.specialAllowance ?? 0) / totalDaysInMonth) * paidDays);
-           const gross = basic + hra + da + special;
-           // approximate deductions similar to previous logic (simple heuristic)
-           const pf = Math.round(basic * 0.12);
-           const esi = gross < 21000 ? Math.ceil(gross * 0.0075) : 0;
-           const pt = 200;
-           const tax = gross > 50000 ? Math.round((gross - 50000) * 0.1) : 0;
-           const totalDeductions = pf + esi + pt + tax;
-           const netSalary = gross - totalDeductions;
 
-           allData.push({
-             'Month': monthStr,
-             'Employee ID': emp.id,
-             'Name': emp.name,
-             'Department': emp.department,
-             'Days Paid': paidDays,
-             'Basic': basic,
-             'HRA': hra,
-             'DA': da,
-             'Special': special,
-             'GROSS': gross,
-             'PF': pf,
-             'ESI': esi,
-             'PT': pt,
-             'TDS': tax,
-             'DEDUCTIONS': totalDeductions,
-             'NET SALARY': netSalary
-           });
-         }
+      filteredEmployees.forEach(emp => {
+        // Reuse existing payroll calc approach by attempting to derive paidDays from existing payslips if present,
+        // otherwise approximate using employeePayslips history or attendance (maintaining original logic unchanged).
+        // For compatibility with prior version, if a generated payslip exists for that emp & month, use it; else fallback:
+        const existingSlip = (employeePayslips[emp.id] || []).find(s => s.month === monthStr) || (generatedPayslips[emp.id] && generatedPayslips[emp.id].month === monthStr ? generatedPayslips[emp.id] : undefined);
+
+        if (existingSlip) {
+          const result = {
+            paidDays: Math.round((existingSlip.attendancePercentage / 100) * 30),
+            earnings: existingSlip.earnings,
+            deductions: existingSlip.deductions,
+            netSalary: existingSlip.netSalary
+          };
+          allData.push({
+            'Month': monthStr,
+            'Employee ID': emp.id,
+            'Name': emp.name,
+            'Department': emp.department,
+            'Days Paid': result.paidDays,
+            'Monthly Gross': emp.monthlyGrossSalary,
+            'Basic': result.earnings.basic,
+            'HRA': result.earnings.hra,
+            'DA': result.earnings.da,
+            'Special': result.earnings.specialAllowance,
+            'GROSS': result.earnings.gross,
+            'PF': result.deductions.pf,
+            'ESI': result.deductions.esi,
+            'PT': result.deductions.pt,
+            'TDS': result.deductions.tax,
+            'DEDUCTIONS': result.deductions.totalDeductions,
+            'NET SALARY': result.netSalary
+          });
+        } else {
+          // Fallback: try to approximate using attendance records for that month
+          const monthPrefixLocal = monthStr;
+          const monthRecords = attendance.filter(a => a.employeeId === emp.id && a.date.startsWith(monthPrefixLocal));
+          let paidDays = 0;
+          const totalDaysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+          if (monthRecords.length === 0) {
+            paidDays = totalDaysInMonth;
+          } else {
+            monthRecords.forEach(r => {
+              if (r.status === 'Present') paidDays += 1;
+              if (r.status === 'Leave') paidDays += 1;
+              if (r.status === 'Half Day') paidDays += 0.5;
+            });
+          }
+          const basic = Math.round(((emp.basicSalary ?? 0) / totalDaysInMonth) * paidDays);
+          const hra = Math.round(((emp.hra ?? 0) / totalDaysInMonth) * paidDays);
+          const da = Math.round(((emp.da ?? 0) / totalDaysInMonth) * paidDays);
+          const special = Math.round(((emp.specialAllowance ?? 0) / totalDaysInMonth) * paidDays);
+          const gross = basic + hra + da + special;
+          // approximate deductions similar to previous logic (simple heuristic)
+          const pf = Math.round(basic * 0.12);
+          const esi = gross < 21000 ? Math.ceil(gross * 0.0075) : 0;
+          const pt = 200;
+          const tax = gross > 50000 ? Math.round((gross - 50000) * 0.1) : 0;
+          const totalDeductions = pf + esi + pt + tax;
+          const netSalary = gross - totalDeductions;
+
+          allData.push({
+            'Month': monthStr,
+            'Employee ID': emp.id,
+            'Name': emp.name,
+            'Department': emp.department,
+            'Days Paid': paidDays,
+            'Monthly Gross': emp.monthlyGrossSalary,
+            'Basic': basic,
+            'HRA': hra,
+            'DA': da,
+            'Special': special,
+            'GROSS': gross,
+            'PF': pf,
+            'ESI': esi,
+            'PT': pt,
+            'TDS': tax,
+            'DEDUCTIONS': totalDeductions,
+            'NET SALARY': netSalary
+          });
+        }
       });
 
       // Next month
@@ -394,12 +430,33 @@ export const PayrollManager: React.FC = () => {
       <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-slate-100 mb-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div className="flex-1 min-w-0">
           <h2 className="text-lg md:text-xl font-bold text-slate-800 flex items-center gap-2 truncate">
-            <IndianRupee className="text-emerald-600" /> <span>Payroll Management</span>
+            <IndianRupee className="text-emerald-600" />
+            <span>Payroll Management</span>
           </h2>
-          <p className="text-slate-500 sm:max-w-auto mt-1 text-sm truncate">Generate monthly payslips based on actual attendance.</p>
+          <p className="text-slate-500 mt-1 text-sm">
+            Generate monthly payslips based on actual attendance.
+          </p>
         </div>
 
-        <div className="w-full md:w-[40%] lg:w-[35%]">
+        <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-lg px-4 py-2 shadow-sm text-sm font-medium">
+          <button
+            onClick={() => shiftPeriod(-1)}
+            className="text-slate-600 hover:text-slate-800">
+            <ChevronLeft size={18} />
+          </button>
+          <div className="text-center leading-tight">
+            <div className="text-xs text-slate-400 uppercase">Payroll Period</div>
+            <div className="font-semibold">{selectedPeriod.toLocaleString('default', {month: 'long', year: 'numeric'})}</div>
+          </div>
+          <button
+            onClick={() => shiftPeriod(1)}
+            className="text-slate-600 hover:text-slate-800">
+            <ChevronRight size={18} />
+          </button>
+        </div>
+
+
+        <div className="w-full md:w-[35%] lg:w-[30%]">
           <FilteredEmployeeSearch
             searchTerm={searchTerm}
             setSearchTerm={setSearchTerm}
@@ -411,24 +468,24 @@ export const PayrollManager: React.FC = () => {
             placeholder="Search employee..."
           />
         </div>
-         <div className="flex flex-col md:flex-row gap-2 w-full sm:w-auto ">
-          <button 
-              onClick={handleExport}
-              className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors shadow-sm font-medium whitespace-nowrap text-sm"
+        <div className="flex flex-col md:flex-row gap-2 w-full sm:w-auto ">
+          <button
+            onClick={handleExport}
+            className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors shadow-sm font-medium whitespace-nowrap text-sm"
           >
-              <Download size={16} /> Summary
+            <Download size={16} /> Summary
           </button>
-          <button 
-              onClick={handleExportMonthlyReport}
-              className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors shadow-sm font-medium whitespace-nowrap text-sm"
+          <button
+            onClick={handleExportMonthlyReport}
+            className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors shadow-sm font-medium whitespace-nowrap text-sm"
           >
-              <FileText size={16} /> Monthly
+            <FileText size={16} /> Monthly
           </button>
-          <button 
-              onClick={() => setShowExportModal(true)}
-              className="flex items-center gap-2 px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shadow-sm font-medium whitespace-nowrap text-sm"
+          <button
+            onClick={() => setShowExportModal(true)}
+            className="flex items-center gap-2 px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shadow-sm font-medium whitespace-nowrap text-sm"
           >
-              <CalendarRange size={16} /> Range
+            <CalendarRange size={16} /> Range
           </button>
         </div>
       </div>
@@ -464,7 +521,7 @@ export const PayrollManager: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="flex flex-col items-end gap-2">
+                  {/* <div className="flex flex-col items-end gap-2">
                     <button
                       onClick={async () => {
                         if (!employeePayslips[emp.id]) await fetchPayslipHistory(emp.id);
@@ -482,18 +539,7 @@ export const PayrollManager: React.FC = () => {
                     >
                       View History
                     </button>
-
-                    <button
-                      onClick={async () => {
-                        await generatePayslip(emp);
-                        await fetchPayslipHistory(emp.id);
-                      }}
-                      disabled={isLoading}
-                      className="text-xs px-3 py-1 rounded-md bg-slate-50 border border-slate-100"
-                    >
-                      {isLoading ? 'Processing...' : 'Generate'}
-                    </button>
-                  </div>
+                  </div> */}
                 </div>
 
                 <div className="p-4 md:p-6 bg-slate-50/50 flex-1 space-y-3">
@@ -521,48 +567,56 @@ export const PayrollManager: React.FC = () => {
                 </div>
 
                 <div className="p-3 md:p-4 border-t border-slate-100 bg-white flex flex-col sm:flex-row gap-2">
-                  <button
-                    onClick={() => {
-                      if (slip) viewPayslip(emp, slip);
-                      else {
-                        const rows = employeePayslips[emp.id] ?? [];
-                        if (rows.length > 0) viewPayslip(emp, rows[0]);
-                        else alert('No payslip to view. Generate one.');
-                      }
-                    }}
-                    className="w-full sm:flex-1 py-2.5 px-4 bg-white border border-emerald-200 text-emerald-700 rounded-lg hover:bg-emerald-50 font-medium transition-colors flex items-center justify-center gap-2"
-                  >
-                    <Eye size={16} /> <span className="hidden sm:inline">View</span>
-                    <span className="sm:hidden">View</span>
-                  </button>
 
-                  <button
-                    onClick={async () => {
-                      const rows = employeePayslips[emp.id] ?? [];
-                      const target = rows[0] ?? generatedPayslips[emp.id];
-                      if (!target) return alert('Generate payslip first.');
-                      await downloadPdf(target);
-                    }}
-                    className="w-full sm:w-auto py-2.5 px-4 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2"
-                  >
-                    Download PDF
-                  </button>
+                  {slip && (
+                    <button
+                      onClick={() => viewPayslip(emp, slip)}
+                      className="w-full py-2.5 px-4 border border-emerald-200 text-emerald-700 rounded-lg hover:bg-emerald-50 font-medium transition flex items-center justify-center gap-2"
+                    >
+                      <Eye size={16} /> View Payslip
+                    </button>
+                  )}
 
-                  <button
-                    onClick={async () => {
-                      const rows = employeePayslips[emp.id] ?? [];
-                      const target = rows[0] ?? generatedPayslips[emp.id];
-                      if (!target) return alert('Generate payslip first.');
-                      const to = emp.email ?? prompt('Employee email:', '') ?? '';
-                      if (!to) return alert('No email provided');
-                      await emailPayslip(target, to);
-                    }}
-                    className="w-full sm:w-auto py-2.5 px-4 bg-white border border-slate-100 text-slate-700 rounded-lg font-medium hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
-                  >
-                    <Mail size={16} /> <span className="hidden sm:inline">Email</span>
-                    <span className="sm:hidden">Email</span>
-                  </button>
+                  {slip && (
+                    <button
+                      onClick={async () => {
+                        const ok = window.confirm('This will regenerate and overwrite the existing payslip. Continue?');
+                        if (!ok) return;
+
+                        setLoadingId(emp.id);
+                        try {
+                          await generatePayslip(emp);
+                          await fetchPayslipHistory(emp.id);
+                        } finally {
+                          setLoadingId(null);
+                        }
+                      }}
+                      disabled={loadingId === emp.id}
+                      className="w-full sm:w-auto py-2.5 px-4 bg-white border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 font-medium transition flex items-center justify-center gap-2"
+                    >
+                      {loadingId === emp.id ? 'Regenerating...' : 'Regenerate'}
+                    </button>
+                  )}
+
+                  {!slip && (
+                    <button
+                      onClick={async () => {
+                        setLoadingId(emp.id);
+                        try {
+                          await generatePayslip(emp);
+                          await fetchPayslipHistory(emp.id);
+                        } finally {
+                          setLoadingId(null);
+                        }
+                      }}
+                      disabled={loadingId === emp.id}
+                      className="w-full py-2.5 px-4 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-medium transition flex items-center justify-center gap-2"
+                    >
+                      ✨ {loadingId === emp.id ? 'Calculating...' : `Calculate ${formatPeriodLabel(selectedPeriod)}`}
+                    </button>
+                  )}
                 </div>
+
               </div>
             );
           })}
@@ -647,12 +701,12 @@ export const PayrollManager: React.FC = () => {
           onClose={() => setSelectedPayslip(null)}
         />
       )}
-       <ExportRangeModal 
-         isOpen={showExportModal}
-         onClose={() => setShowExportModal(false)}
-         onExport={handleRangeExport}
-         type="month"
-         title="Export Payroll Register"
+      <ExportRangeModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        onExport={handleRangeExport}
+        type="month"
+        title="Export Payroll Register"
       />
     </div>
   );

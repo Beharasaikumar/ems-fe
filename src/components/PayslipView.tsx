@@ -17,12 +17,27 @@ export const PayslipView: React.FC<PayslipViewProps> = ({ employee: initialEmplo
   const [remotePayslip, setRemotePayslip] = useState<any | null>(null);
   const [employee, setEmployee] = useState<Employee | null>(initialEmployee ?? null);
   const [loading, setLoading] = useState<boolean>(!!initialPayslip && !!(initialPayslip as any).id);
-  const [sending, setSending] = useState(false);
+  // const [sending, setSending] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [statusMsg, setStatusMsg] = useState('');
 
   const payslipId = (initialPayslip as any)?.id;
+
+const rawMonth = (initialPayslip as any)?.month; 
+const rawYear = (initialPayslip as any)?.year;   
+
+let formattedPeriod = '—';
+
+if (rawMonth && rawYear && typeof rawMonth === 'string') {
+  const monthIndex = parseInt(rawMonth.split('-')[1], 10) - 1;
+  if (!isNaN(monthIndex)) {
+    formattedPeriod = new Date(rawYear, monthIndex).toLocaleString('default', {
+      month: 'long',
+      year: 'numeric',
+    });
+  }
+}
 
   useEffect(() => {
     let cancelled = false;
@@ -119,7 +134,7 @@ export const PayslipView: React.FC<PayslipViewProps> = ({ employee: initialEmplo
 ------------------------------
  NET PAY: ${fmt(payload.netSalary)}
 
- HR Remarks: ${remarks}
+ HR Remarks: ${remarks} 
 
  This is a system-generated payslip.
   `.trim();
@@ -466,6 +481,12 @@ export const PayslipView: React.FC<PayslipViewProps> = ({ employee: initialEmplo
                 </div>
               </div>
 
+  <div className="text-center mb-8">
+               <span className="inline-block px-6 py-2 rounded-lg bg-slate-50 text-slate-800 font-bold text-sm border border-slate-200 uppercase tracking-wider">
+                  Payslip for {formattedPeriod}
+               </span>
+            </div>
+
               <div className="grid grid-cols-2 gap-y-4 gap-x-8 mb-8 text-sm">
                 <div>
                   <span className="text-xs text-slate-500 uppercase tracking-wide">Employee Name</span>
@@ -539,7 +560,7 @@ export const PayslipView: React.FC<PayslipViewProps> = ({ employee: initialEmplo
                   <p className="text-xs font-bold text-yellow-800 uppercase tracking-wide mb-1 flex items-center gap-1">
                     <CheckCircle size={14} /> HR Remarks
                   </p>
-                  <p className="text-slate-700 italic">"{employee.remarks}"</p>
+                  <p className="text-slate-700 italic">"Thank you for your contribution this month."</p>
                 </div>
               )}
 

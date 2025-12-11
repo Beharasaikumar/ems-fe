@@ -87,7 +87,7 @@ export const AttendanceManager: React.FC = () => {
 
   const getStatus = (empId: string, date: string) => {
     const rec = attendance.find(a => a.employeeId === empId && a.date === date);
-    return rec ? (rec.status as AttendanceStatus) : null;
+    return rec ? (rec.status as AttendanceStatus) : AttendanceStatus.PRESENT;
   };
 
   const shiftDate = (days: number) => {
@@ -139,7 +139,7 @@ export const AttendanceManager: React.FC = () => {
       EmployeeID: emp.id,
       Name: emp.name,
       Department: emp.department,
-      Status: getStatus(emp.id, dateStr) || 'Not Marked'
+      Status: getStatus(emp.id, dateStr) || 'Present'
     }));
     exportToCSV(data, `Attendance_Daily_${dateStr}.csv`);
   };
