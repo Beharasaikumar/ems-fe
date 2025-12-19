@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Employee, ViewState, EmployeeAttendance, AttendanceStatus } from './types';
+import { Employee, ViewState, EmployeeAttendance, AttendanceStatus, LeaveRequest } from './types';
 import { INITIAL_EMPLOYEES, generateMockAttendance } from './constants';
 import { Login } from './components/Login';
 import { Layout } from './components/Layout';
@@ -8,15 +8,23 @@ import { AttendanceManager } from './components/AttendanceManager';
 import { PayrollManager } from './components/PayrollManager';
 import { AddEmployeeModal } from './components/AddEmployeeModal';
 import { EmployeeDetailsModal } from './components/EmployeeDetailsModal';
-import SignUp from './components/SignUp';
+// import SignUp from './components/SignUp';
 import ForgotPassword from './components/ForgotPassword';
 import ResetPassword from './components/ResetPassword';
 import EmployeesView from './components/EmployeesView';
+import EmployeePortal from './components/EmployeePortal';
+import { LeaveManager } from './components/LeaveRequest';
 
 const API_BASE = process.env.REACT_APP_API_URL ?? 'http://localhost:4000/api';
 const TOKEN_KEY = 'lomaa_token';
 
-type AuthPage = 'signup' | 'login' | 'forgot' | 'reset';
+type AuthPage = 'login' | 'forgot' | 'reset';
+
+type CurrentUser = {
+  role: 'ADMIN' | 'EMPLOYEE';
+  employeeId?: string;
+  name?: string;
+};
 
 function getToken() {
   return localStorage.getItem(TOKEN_KEY);
@@ -28,16 +36,15 @@ function setToken(token: string | null) {
 }
 
 const App: React.FC = () => {
-  const [authPage, setAuthPage] = useState<AuthPage>('signup');
+  const [authPage, setAuthPage] = useState<AuthPage>('login');
   const [resetToken, setResetToken] = useState<string>('');
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => !!getToken());
+  // const [authLoading, setAuthLoading] = useState(true);
   const [currentView, setCurrentView] = useState<ViewState>('DASHBOARD');
 
   // data state
-  const [employees, setEmployees] = useState<Employee[]>(INITIAL_EMPLOYEES);
-  const [attendance, setAttendance] = useState<EmployeeAttendance[]>(() =>
-    INITIAL_EMPLOYEES.map(e => generateMockAttendance(e.id))
-  );
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [attendance, setAttendance] = useState<EmployeeAttendance[]>([]);
   const [loading, setLoading] = useState(false);
 
   // UI state
@@ -45,6 +52,9 @@ const App: React.FC = () => {
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [viewingEmployee, setViewingEmployee] = useState<Employee | null>(null);
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+
+  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
 
 
   useEffect(() => {
@@ -86,6 +96,7 @@ const App: React.FC = () => {
 
   function logout() {
     setToken(null);
+    setCurrentUser(null);
     setIsAuthenticated(false);
   }
 
@@ -131,6 +142,8 @@ const App: React.FC = () => {
   }
 
   async function loadAllData() {
+    if (!currentUser || currentUser.role !== 'ADMIN') return;
+
     setLoading(true);
     try {
       await loadEmployeesFromApi();
@@ -140,11 +153,12 @@ const App: React.FC = () => {
     }
   }
 
-  useEffect(() => {
-    if (isAuthenticated) {
-      loadAllData().catch(err => console.error('Initial load failed', err));
-    }
-  }, [isAuthenticated]);
+
+  // useEffect(() => {
+  //   if (isAuthenticated) {
+  //     loadAllData().catch(err => console.error('Initial load failed', err));
+  //   }
+  // }, [isAuthenticated]);
 
   const handleFormSubmit = async (empData: Omit<Employee, 'id'>) => {
     if (editingEmployee) {
@@ -222,26 +236,92 @@ const App: React.FC = () => {
 
   async function handleLoginWrapper() {
     try {
-      if (!getToken()) {
-        setIsAuthenticated(true);
-        await loadAllData();
-        return;
-      }
       setIsAuthenticated(true);
-      await loadAllData();
+      // setAuthLoading(true);
+      await loadCurrentUser();
+      // await loadAllData();
     } catch (err) {
       console.warn('Login wrapper error', err);
-      setIsAuthenticated(true);
+      setToken(null);
+      setCurrentUser(null);
+      // setAuthLoading(false);
+      setIsAuthenticated(false);
     }
   }
+
+  async function loadCurrentUser() {
+    try {
+      const user = await apiFetch('/auth/me'); // we'll add this API
+      setCurrentUser({
+        role: user.role.toUpperCase() as 'ADMIN' | 'EMPLOYEE', // 'ADMIN' | 'EMPLOYEE'
+        employeeId: user.role === 'EMPLOYEE' ? user.employeeId : undefined,
+        name: user.username,
+      });
+    } catch {
+      logout()
+    }
+    //  finally{
+    //   setAuthLoading(false);
+    //  }
+  }
+
+  async function loadLeaves() {
+    try {
+      const rows = await apiFetch('/leaves'); // admin endpoint
+      setLeaveRequests(Array.isArray(rows) ? rows : []);
+    } catch (err) {
+      console.error('Failed to load leaves', err);
+    }
+  }
+
+  useEffect(() => {
+    if (isAuthenticated && !currentUser) {
+      loadCurrentUser();
+    }
+  }, [isAuthenticated]);
+
+
+  useEffect(() => {
+    if (isAuthenticated && currentUser?.role === 'ADMIN') {
+      loadAllData().catch(err => console.error(err));
+      loadLeaves();
+    }
+  }, [isAuthenticated, currentUser]);
+
+
+  async function handleUpdateLeaveStatus(
+    id: string,
+    status: 'Approved' | 'Rejected'
+  ) {
+    try {
+      const updated = await apiFetch(`/leaves/${id}/status`, {
+        method: 'PUT',
+        body: JSON.stringify({ status }),
+      });
+
+      setLeaveRequests(prev =>
+        prev.map(l => (l.id === id ? updated : l))
+      );
+    } catch (err) {
+      console.error('Failed to update leave status', err);
+      alert('Failed to update leave');
+    }
+  }
+
+
 
   if (!isAuthenticated) {
     return (
       <>
-        {authPage === 'signup' && (
+        {/* {authPage === 'signup' && (
           <SignUp onGoLogin={() => setAuthPage('login')} />
-        )}
-        {authPage === 'login' && <Login onLogin={() => handleLoginWrapper()} onGoForgot={() => setAuthPage('forgot')} onGoSignup={() => setAuthPage('signup')} />}
+        )} */}
+        {authPage === 'login' && (
+          <Login
+            onLogin={() => handleLoginWrapper()}
+            onGoForgot={() => setAuthPage('forgot')}
+          // onGoSignup={() => setAuthPage('signup')} 
+          />)}
         {authPage === 'forgot' && (
           <ForgotPassword onGoLogin={() => setAuthPage('login')} />
         )}
@@ -252,51 +332,78 @@ const App: React.FC = () => {
     );
   }
 
+  // if (authLoading) {
+  //   return <div className="p-6">Loading user...</div>;
+  // }
+
+
   return (
-    <Layout currentView={currentView} setView={setCurrentView} onLogout={() => { logout(); }}>
+    <Layout currentView={currentView} setView={setCurrentView} onLogout={() => { logout(); }} user={currentUser ?? undefined}>
       {loading && (<div className="p-4">Loading...</div>)}
 
-      {currentView === 'DASHBOARD' && <Dashboard employees={employees} attendance={attendance} />}
+      {currentUser?.role === 'ADMIN' && (
+        <>
+          {currentView === 'DASHBOARD' && <Dashboard employees={employees} attendance={attendance} />}
 
-      {currentView === 'EMPLOYEES' && (
-        <EmployeesView
-          employees={employees}
-          getFilteredEmployees={getFilteredEmployees}
-          searchTerm={searchTerm}
-          setSearchTerm={setSearchTerm}
-          onAdd={() => { setEditingEmployee(null); setIsFormModalOpen(true); }}
-          onEdit={(emp) => { setEditingEmployee(emp); setIsFormModalOpen(true); }}
-          onDelete={handleDeleteEmployee}
-          onView={(emp) => setViewingEmployee(emp)}
+          {currentView === 'EMPLOYEES' && (
+            <EmployeesView
+              employees={employees}
+              getFilteredEmployees={getFilteredEmployees}
+              searchTerm={searchTerm}
+              setSearchTerm={setSearchTerm}
+              onAdd={() => { setEditingEmployee(null); setIsFormModalOpen(true); }}
+              onEdit={(emp) => { setEditingEmployee(emp); setIsFormModalOpen(true); }}
+              onDelete={handleDeleteEmployee}
+              onView={(emp) => setViewingEmployee(emp)}
+            />
+          )}
+
+          {currentView === 'ATTENDANCE' && (
+            <AttendanceManager
+              employees={employees}
+              attendance={attendance}
+              onUpdateAttendance={handleUpdateAttendance}
+            />
+          )}
+
+          {currentView === 'PAYROLL' && (
+            <PayrollManager
+              employees={employees}
+              attendance={attendance}
+            />
+          )}
+
+          {currentView === 'LEAVES' && (
+            <LeaveManager
+              employees={employees}
+              leaveRequests={leaveRequests}
+              onUpdateStatus={handleUpdateLeaveStatus}
+            />
+          )}
+
+          <AddEmployeeModal
+            isOpen={isFormModalOpen}
+            onClose={() => setIsFormModalOpen(false)}
+            onSubmit={handleFormSubmit}
+            employeeToEdit={editingEmployee}
+          />
+
+          <EmployeeDetailsModal
+            employee={viewingEmployee}
+            onClose={() => setViewingEmployee(null)}
+          />
+        </>
+      )}
+      {currentUser?.role === 'EMPLOYEE' && (
+        <EmployeePortal
+          currentView={currentView}
+        // employee={employees.find(e => e.id === currentUser.employeeId)!}
+        // attendance={attendance}
+        // payslips={{}} 
+        // leaveRequests={[]}
+        // onAddLeaveRequest={() => {}}
         />
       )}
-
-      {currentView === 'ATTENDANCE' && (
-        <AttendanceManager
-          employees={employees}
-          attendance={attendance}
-          onUpdateAttendance={handleUpdateAttendance}
-        />
-      )}
-
-      {currentView === 'PAYROLL' && (
-        <PayrollManager
-          employees={employees}
-          attendance={attendance}
-        />
-      )}
-
-      <AddEmployeeModal
-        isOpen={isFormModalOpen}
-        onClose={() => setIsFormModalOpen(false)}
-        onSubmit={handleFormSubmit}
-        employeeToEdit={editingEmployee}
-      />
-
-      <EmployeeDetailsModal
-        employee={viewingEmployee}
-        onClose={() => setViewingEmployee(null)}
-      />
     </Layout>
   );
 };

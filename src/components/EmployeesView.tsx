@@ -28,7 +28,8 @@ const handleExportEmployees = () => {
         Department: e.department,
         JoinDate: e.joinDate,
         PAN: e.pan,
-        BasicSalary: e.basicSalary,
+        monthly: e.monthlyGrossSalary,
+        BasicSalary: e.basicSalary || 0,
         HRA: e.hra || 0,
         DA: e.da || 0,
         Special: e.specialAllowance || 0,
@@ -116,7 +117,7 @@ const handleExportEmployees = () => {
                   </td>
 
                   <td className="p-3 md:p-4 align-top font-medium text-slate-700">
-                    <div className="whitespace-nowrap">₹{(emp.basicSalary ?? 0).toLocaleString()}</div>
+                    <div className="whitespace-nowrap">₹{(emp.monthlyGrossSalary ?? 0).toLocaleString()}</div>
                   </td>
 
                   <td className="p-3 md:p-4 align-top text-right">

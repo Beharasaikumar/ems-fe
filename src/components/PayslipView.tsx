@@ -24,20 +24,20 @@ export const PayslipView: React.FC<PayslipViewProps> = ({ employee: initialEmplo
 
   const payslipId = (initialPayslip as any)?.id;
 
-const rawMonth = (initialPayslip as any)?.month; 
-const rawYear = (initialPayslip as any)?.year;   
+  const rawMonth = (initialPayslip as any)?.month;
+  const rawYear = (initialPayslip as any)?.year;
 
-let formattedPeriod = '—';
+  let formattedPeriod = '—';
 
-if (rawMonth && rawYear && typeof rawMonth === 'string') {
-  const monthIndex = parseInt(rawMonth.split('-')[1], 10) - 1;
-  if (!isNaN(monthIndex)) {
-    formattedPeriod = new Date(rawYear, monthIndex).toLocaleString('default', {
-      month: 'long',
-      year: 'numeric',
-    });
+  if (rawMonth && rawYear && typeof rawMonth === 'string') {
+    const monthIndex = parseInt(rawMonth.split('-')[1], 10) - 1;
+    if (!isNaN(monthIndex)) {
+      formattedPeriod = new Date(rawYear, monthIndex).toLocaleString('default', {
+        month: 'long',
+        year: 'numeric',
+      });
+    }
   }
-}
 
   useEffect(() => {
     let cancelled = false;
@@ -471,21 +471,21 @@ if (rawMonth && rawYear && typeof rawMonth === 'string') {
             <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-8 max-w-2xl mx-auto" id="printable-area">
               <div className="text-center border-b border-slate-200 pb-6 mb-6">
                 <div className="flex items-center justify-center gap-3 mb-2">
-                     <div className="relative w-[200px] h-[80px] rounded-full">
-                      <img
-                        src="/logo.svg"
-                        alt="Company Logo"
-                        className="w-full h-full object-contain rounded-full"
-                      />
-                  </div> 
+                  <div className="relative w-[200px] h-[80px] rounded-full">
+                    <img
+                      src="/logo.svg"
+                      alt="Company Logo"
+                      className="w-full h-full object-contain rounded-full"
+                    />
+                  </div>
                 </div>
               </div>
 
-  <div className="text-center mb-8">
-               <span className="inline-block px-6 py-2 rounded-lg bg-slate-50 text-slate-800 font-bold text-sm border border-slate-200 uppercase tracking-wider">
+              <div className="text-center mb-8">
+                <span className="inline-block px-6 py-2 rounded-lg bg-slate-50 text-slate-800 font-bold text-sm border border-slate-200 uppercase tracking-wider">
                   Payslip for {formattedPeriod}
-               </span>
-            </div>
+                </span>
+              </div>
 
               <div className="grid grid-cols-2 gap-y-4 gap-x-8 mb-8 text-sm">
                 <div>
@@ -523,6 +523,15 @@ if (rawMonth && rawYear && typeof rawMonth === 'string') {
                   <span className="font-semibold text-slate-700">{Math.round(((employee.attendancePercentage ?? payload.attendancePercentage ?? 0) / 100) * 30)} days</span>
                 </div>
               </div>
+              <div className="gross-highlight mb-6 grid grid-cols-2 gap-4 text-sm">
+                 <div><span className="text-xs text-slate-500 uppercase tracking-wide">
+                    Monthly Gross Salary
+                  </span></div>
+                  <div className="strong font-bold text-slate-800">
+                    ₹{(payload.monthlyGrossSalary ?? payload.earnings?.gross ?? 0).toLocaleString('en-IN')}
+                  </div>
+                </div>
+             
 
               {/* Salary Table */}
               <div className="border border-slate-200 rounded-lg overflow-hidden mb-8">

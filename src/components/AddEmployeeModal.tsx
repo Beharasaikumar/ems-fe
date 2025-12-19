@@ -206,6 +206,7 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
         department: formData.department,
         joinDate: formData.joinDate,
         pan: formData.pan,
+        monthlyGrossSalary: formData.monthlyGrossSalary? Number(formData.monthlyGrossSalary) : 0,
         basicSalary: formData.basicSalary ? Number(formData.basicSalary) : 0,
         hra: formData.hra ? Number(formData.hra) : 0,
         da: formData.da ? Number(formData.da) : 0,

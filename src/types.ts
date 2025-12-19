@@ -7,17 +7,23 @@ export interface Employee {
   joinDate: string;
   pan: string;
   department: string;
-  
+
   // Salary Structure
-  basicSalary: number; // Monthly Basic in INR
-  hra: number;         // House Rent Allowance
-  da: number;          // Dearness Allowance
+  monthlyGrossSalary: number;
+
+  basicSalary: number; 
+  hra: number;         
+  da: number;          
   specialAllowance: number;
-  
+
   // Banking & Statutory
   bankAccountNumber?: string;
   pfAccountNumber?: string;
   esiNumber?: string;
+
+  // sickleave: number;
+  // casualleave: number;
+  // paidleave: number;
 }
 
 export enum AttendanceStatus {
@@ -46,8 +52,8 @@ export interface Payslip {
   attendancePercentage: number;
   earnings: {
     basic: number;
-    hra: number; 
-    da: number; 
+    hra: number;
+    da: number;
     specialAllowance: number;
     gross: number;
   };
@@ -62,4 +68,18 @@ export interface Payslip {
   remarks?: string; // AI Generated remark
 }
 
-export type ViewState = 'DASHBOARD' | 'EMPLOYEES' | 'ATTENDANCE' | 'PAYROLL';
+export interface LeaveRequest {
+  id: string;
+  employeeId: string;
+  type: 'Sick' | 'Casual' | 'Paid';
+  startDate: string; // YYYY-MM-DD
+  endDate: string;
+  reason?: string;
+  status: 'Pending' | 'Approved' | 'Rejected';
+  appliedOn: string;
+  decidedOn?: string;
+}
+
+
+export type ViewState = 'DASHBOARD' | 'EMPLOYEES' | 'ATTENDANCE' | 'PAYROLL' | 'LEAVES';
+

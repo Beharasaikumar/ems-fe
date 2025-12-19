@@ -27,3 +27,20 @@
      ::-webkit-scrollbar-thumb:hover {
          background: #94a3b8;
      }
+
+ .gross-highlight {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:12px 16px;
+  margin:16px 0 18px;
+  border-radius:10px;
+  background:linear-gradient(90deg, #ecfdf5, #f0fdf9);
+  border:1px solid var(--emerald-100);
+  font-size:14px;
+  font-weight:700;
+}
+.gross-highlight .strong {
+  font-size:16px;
+  color:var(--emerald-700);
+}

@@ -6,22 +6,38 @@ import {
   CalendarCheck,
   IndianRupee,
   LogOut,
-  Leaf
+  CheckSquare,
+  CalendarDays,
 } from 'lucide-react';
 
 interface SidebarProps {
   currentView: ViewState;
   setView: (view: ViewState) => void;
   onLogout: () => void;
+   user: {
+    role: 'ADMIN' | 'EMPLOYEE';
+  };
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout }) => {
-  const navItems: { view: ViewState; label: string; icon: React.ReactNode }[] = [
+export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout, user }) => {
+  if (!user) return null;
+  const adminNavItems: { view: ViewState; label: string; icon: React.ReactNode }[] = [
     { view: 'DASHBOARD', label: 'Dashboard', icon: <LayoutDashboard size={20} /> },
     { view: 'EMPLOYEES', label: 'Employees', icon: <Users size={20} /> },
     { view: 'ATTENDANCE', label: 'Attendance', icon: <CalendarCheck size={20} /> },
     { view: 'PAYROLL', label: 'Payroll', icon: <IndianRupee size={20} /> },
+    { view: 'LEAVES', label: 'Leave Management', icon: <CheckSquare size={20} />},
   ];
+
+  const employeeNavItems: { view: ViewState; label: string; icon: React.ReactNode }[] = [
+  { view: 'DASHBOARD', label: 'Dashboard', icon: <LayoutDashboard size={20} /> },
+  { view: 'ATTENDANCE', label: 'Attendance', icon: <CalendarCheck size={20} /> },
+  { view: 'PAYROLL', label: 'Payroll', icon: <IndianRupee size={20} /> },
+  { view: 'LEAVES', label: 'Leave Request', icon: <CalendarDays size={20} /> },
+];
+
+  const navItems =
+    user.role === 'ADMIN' ? adminNavItems : employeeNavItems;
 
   return (
     <div className="w-64 bg-slate-900 text-white h-screen fixed left-0 top-0 flex flex-col shadow-2xl z-20">

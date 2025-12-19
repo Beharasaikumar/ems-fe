@@ -3,14 +3,14 @@ import { Lock, User, Leaf } from 'lucide-react';
 
 interface LoginProps {
   onLogin: () => void;
-  onGoSignup: () => void;
+  // onGoSignup: () => void;
   onGoForgot: () => void;
 }
 
 const API_BASE = process.env.REACT_APP_API_URL ?? 'http://localhost:4000/api';
 const TOKEN_KEY = 'lomaa_token';
 
-export const Login: React.FC<LoginProps> = ({ onLogin, onGoSignup, onGoForgot }) => {
+export const Login: React.FC<LoginProps> = ({ onLogin, onGoForgot }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -124,7 +124,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onGoSignup, onGoForgot })
               Forgot Password?
             </button>
 
-            <p>
+            {/* <p>
               Don’t have an account?{' '}
               <button
                 type="button"
@@ -133,7 +133,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onGoSignup, onGoForgot })
               >
                 Sign Up
               </button>
-            </p>
+            </p> */}
           </div>
         </form>
       </div>
