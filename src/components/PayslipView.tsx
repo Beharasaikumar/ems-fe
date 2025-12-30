@@ -547,8 +547,8 @@ export const PayslipView: React.FC<PayslipViewProps> = ({ employee: initialEmplo
                     <div className="flex justify-between"><span>Special Allow.</span> <span>₹{payload.earnings.specialAllowance.toLocaleString()}</span></div>
                   </div>
                   <div className="p-4 space-y-3 border-l border-slate-200 bg-slate-50/50">
-                    <div className="flex justify-between text-slate-700"><span>PF (12%)</span> <span>₹{payload.deductions.pf.toLocaleString()}</span></div>
-                    <div className="flex justify-between text-slate-700"><span>ESI (0.75%)</span> <span>₹{payload.deductions.esi.toLocaleString()}</span></div>
+                    <div className="flex justify-between text-slate-700"><span>PF </span> <span>₹{payload.deductions.pf.toLocaleString()}</span></div>
+                    <div className="flex justify-between text-slate-700"><span>ESI </span> <span>₹{payload.deductions.esi.toLocaleString()}</span></div>
                     <div className="flex justify-between text-slate-700"><span>Prof. Tax</span> <span>₹{payload.deductions.pt.toLocaleString()}</span></div>
                     <div className="flex justify-between text-slate-700"><span>TDS</span> <span>₹{payload.deductions.tax.toLocaleString()}</span></div>
                   </div>
