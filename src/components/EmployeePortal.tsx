@@ -78,7 +78,7 @@ const EmployeePortal: React.FC<EmployeePortalProps> = ({ currentView }) => {
 
 
   const presentDays = attendance.filter(a => a.status === 'Present').length;
-  const pendingPayslips = payslips.length;
+  const pendingPayslips = payslips.length === 0 ? 'Not yet generated' : payslips.length;
 
 
   
@@ -146,35 +146,43 @@ const EmployeePortal: React.FC<EmployeePortalProps> = ({ currentView }) => {
   );
 
   const PayslipsView = () => (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      {payslips.map(p => (
-        <div
-          key={p.id}
-          className="border rounded-xl p-4 shadow-sm bg-white"
-        >
-          <h3 className="font-bold text-lg">{p.month}</h3>
-          <p className="text-sm text-slate-500">
-            Net Pay: ₹{p.netSalary}
-          </p>
+  <div className="bg-white rounded-xl shadow p-6">
+    <h2 className="font-bold mb-4 flex items-center gap-2">
+      <FileText /> My Payslips
+    </h2>
 
-          <button
-            onClick={() => setSelectedPayslip(p)}
-            className="mt-3 inline-flex items-center gap-2 text-emerald-600 font-medium"
-          >
-            <Eye size={16} /> View Payslip
-          </button>
-        </div>
-      ))}
+    {payslips.length === 0 ? (
+      <div className="text-center text-slate-500 py-10">
+        No payslips generated yet
+      </div>
+    ) : (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {payslips.map(p => (
+          <div key={p.id} className="border rounded-xl p-4 shadow-sm bg-white">
+            <h3 className="font-bold text-lg">{p.month}</h3>
+            <p className="text-sm text-slate-500">Net Pay: ₹{p.netSalary}</p>
 
-      {selectedPayslip && (
-        <PayslipView
-          employee={employee}
-          payslip={selectedPayslip}
-          onClose={() => setSelectedPayslip(null)}
-        />
-      )}
-    </div>
-  );
+            <button
+              onClick={() => setSelectedPayslip(p)}
+              className="mt-3 inline-flex items-center gap-2 text-emerald-600 font-medium"
+            >
+              <Eye size={16} /> View Payslip
+            </button>
+          </div>
+        ))}
+
+        {selectedPayslip && (
+          <PayslipView
+            employee={employee}
+            payslip={selectedPayslip}
+            onClose={() => setSelectedPayslip(null)}
+          />
+        )}
+      </div>
+    )}
+  </div>
+);
+
 
  
   return (

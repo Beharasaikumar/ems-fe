@@ -8,6 +8,7 @@ import {
   LogOut,
   CheckSquare,
   CalendarDays,
+  StickyNote,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -26,7 +27,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout
     { view: 'EMPLOYEES', label: 'Employees', icon: <Users size={20} /> },
     { view: 'ATTENDANCE', label: 'Attendance', icon: <CalendarCheck size={20} /> },
     { view: 'PAYROLL', label: 'Payroll', icon: <IndianRupee size={20} /> },
+    { view: 'BILLS', label: 'Bill Management', icon: <IndianRupee size={20} /> },
     { view: 'LEAVES', label: 'Leave Management', icon: <CheckSquare size={20} />},
+    { view: 'DAILY_LOGS', label: 'Daily Logs', icon: <StickyNote /> },
   ];
 
   const employeeNavItems: { view: ViewState; label: string; icon: React.ReactNode }[] = [

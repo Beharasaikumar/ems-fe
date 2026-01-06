@@ -18,7 +18,7 @@ function getToken(): string | null {
 export const PayrollManager: React.FC = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
-  const [generatedPayslips, setGeneratedPayslips] = useState<Record<string, Payslip>>({});
+  const [generatedPayslips, setGeneratedPayslips] = useState<Record<string, Record<string, Payslip>>>({});
   const [selectedPayslip, setSelectedPayslip] = useState<{ emp: Employee; slip: Payslip } | null>(null);
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -79,7 +79,15 @@ export const PayrollManager: React.FC = () => {
           try {
             const rows = await fetchPayslipHistory(emp.id);
             if (rows && rows.length > 0) {
-              setGeneratedPayslips(prev => ({ ...prev, [emp.id]: rows[0] }));
+              setGeneratedPayslips(prev => {
+                const updated = { ...(prev[emp.id] ?? {}) };
+
+                rows.forEach(r => {
+                  updated[r.month] = r;
+                });
+
+                return { ...prev, [emp.id]: updated };
+              });
             }
           } catch (e) {
             console.warn('Failed to load payslip for', emp.id, e);
@@ -143,8 +151,23 @@ export const PayrollManager: React.FC = () => {
     try {
       // const payload = {};
       const monthPrefix = getPeriodPrefix(selectedPeriod);
-      const result = await apiFetch(`/payroll/generate/${emp.id}`, { method: 'POST', headers:{ 'Content-Type': 'application/json'}, body: JSON.stringify({month: monthPrefix}) }) as Payslip;
-      setGeneratedPayslips(prev => ({ ...prev, [emp.id]: result }));
+      const existingSlip = generatedPayslips[emp.id]?.[monthPrefix];
+
+      const emergencyAdvance = existingSlip?.deductions?.emergencyAdvance ?? 0;
+      const advanceRecovery = existingSlip?.deductions?.advanceRecovery ?? 0;
+
+      const result = await apiFetch(`/payroll/generate/${emp.id}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          month: monthPrefix,
+          emergencyAdvance,
+          advanceRecovery
+        })
+      }) as Payslip;
+      setGeneratedPayslips(prev => ({ ...prev, [emp.id]: { ...(prev[emp.id] ?? {}), [result.month]: result } }));
       setEmployeePayslips(prev => ({ ...prev, [emp.id]: [result, ...(prev[emp.id] || [])] }));
     } catch (err: any) {
       console.error('Generate failed', err);
@@ -210,11 +233,34 @@ export const PayrollManager: React.FC = () => {
     }
   }
 
-  const filteredEmployees = useMemo(() => employees.filter(emp =>
-    emp.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    emp.id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (emp.department ?? '').toLowerCase().includes(searchTerm.toLowerCase())
-  ), [employees, searchTerm]);
+  const filteredEmployees = useMemo(() => {
+    const periodMonth = selectedPeriod.getMonth();
+    const periodYear = selectedPeriod.getFullYear();
+
+    return employees.filter(emp => {
+      // text search logic
+      const matchesSearch =
+        emp.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        emp.id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (emp.department ?? '').toLowerCase().includes(searchTerm.toLowerCase());
+
+      if (!matchesSearch) return false;
+
+      // joining date check
+      if (!emp.joinDate) return true;
+
+      const joinDate = new Date(emp.joinDate);
+      const joinMonth = joinDate.getMonth();
+      const joinYear = joinDate.getFullYear();
+
+      // employee visible only if joinDate <= selected payroll month
+      if (joinYear > periodYear) return false;
+      if (joinYear === periodYear && joinMonth > periodMonth) return false;
+
+      return true;
+    });
+  }, [employees, searchTerm, selectedPeriod]);
+
 
   const viewPayslip = (emp: Employee, slip: Payslip) => {
     setSelectedPayslip({ emp, slip });
@@ -249,7 +295,7 @@ export const PayrollManager: React.FC = () => {
   const handleExport = () => {
     const currentMonthStr = getPeriodPrefix(selectedPeriod);
     const data = filteredEmployees.map(emp => {
-      const slip = generatedPayslips[emp.id];
+      const slip = generatedPayslips[emp.id]?.[currentMonthStr];
       const fixedGross = (emp.basicSalary ?? 0) + (emp.hra ?? 0) + (emp.da ?? 0) + (emp.specialAllowance ?? 0);
       return {
         EmployeeID: emp.id,
@@ -273,7 +319,7 @@ export const PayrollManager: React.FC = () => {
   const handleExportMonthlyReport = () => {
     const currentMonthStr = getPeriodPrefix(selectedPeriod);
     const data = filteredEmployees.map(emp => {
-      const slip = generatedPayslips[emp.id];
+      const slip = generatedPayslips[emp.id]?.[currentMonthStr];
 
       const baseInfo = {
         'Employee ID': emp.id,
@@ -337,10 +383,10 @@ export const PayrollManager: React.FC = () => {
       const monthStr = `${year}-${String(monthIndex + 1).padStart(2, '0')}`;
 
       filteredEmployees.forEach(emp => {
-        // Reuse existing payroll calc approach by attempting to derive paidDays from existing payslips if present,
-        // otherwise approximate using employeePayslips history or attendance (maintaining original logic unchanged).
-        // For compatibility with prior version, if a generated payslip exists for that emp & month, use it; else fallback:
-        const existingSlip = (employeePayslips[emp.id] || []).find(s => s.month === monthStr) || (generatedPayslips[emp.id] && generatedPayslips[emp.id].month === monthStr ? generatedPayslips[emp.id] : undefined);
+
+        const existingSlip =
+          (employeePayslips[emp.id] || []).find(s => s.month === monthStr) ||
+          generatedPayslips[emp.id]?.[monthStr];
 
         if (existingSlip) {
           const result = {
@@ -388,8 +434,7 @@ export const PayrollManager: React.FC = () => {
           const da = Math.round(((emp.da ?? 0) / totalDaysInMonth) * paidDays);
           const special = Math.round(((emp.specialAllowance ?? 0) / totalDaysInMonth) * paidDays);
           const gross = basic + hra + da + special;
-          // approximate deductions similar to previous logic (simple heuristic)
-          const pf = Math.round(basic * 0.12);
+           const pf = Math.round(basic * 0.12);
           const esi = gross < 21000 ? Math.ceil(gross * 0.0075) : 0;
           const pt = 200;
           const tax = gross > 50000 ? Math.round((gross - 50000) * 0.1) : 0;
@@ -425,6 +470,41 @@ export const PayrollManager: React.FC = () => {
     exportToCSV(allData, `Payroll_Register_${startMonth}_to_${endMonth}.csv`);
   };
 
+  const handleEmergencyAdvance = async (empId: string, value: number) => {
+  const monthKey = getPeriodPrefix(selectedPeriod);
+
+  const slip = generatedPayslips[empId]?.[monthKey];
+  if (!slip) return;
+
+  const updatedAdvance = (slip.deductions.emergencyAdvance ?? 0) + value;
+
+  // optimistic UI update
+  setGeneratedPayslips(prev => ({
+    ...prev,
+    [empId]: {
+      ...prev[empId],
+      [monthKey]: {
+        ...slip,
+        deductions: {
+          ...slip.deductions,
+          emergencyAdvance: updatedAdvance
+        }
+      }
+    }
+  }));
+
+  await apiFetch(`/payroll/generate/${empId}`, {
+    method: 'POST',
+    body: JSON.stringify({
+      month: monthKey,
+      emergencyAdvance: updatedAdvance,
+      advanceRecovery: slip.deductions.advanceRecovery ?? 0
+    })
+  });
+};
+
+
+
   return (
     <div className="space-y-6">
       <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-slate-100 mb-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -446,7 +526,7 @@ export const PayrollManager: React.FC = () => {
           </button>
           <div className="text-center leading-tight">
             <div className="text-xs text-slate-400 uppercase">Payroll Period</div>
-            <div className="font-semibold">{selectedPeriod.toLocaleString('default', {month: 'long', year: 'numeric'})}</div>
+            <div className="font-semibold">{selectedPeriod.toLocaleString('default', { month: 'long', year: 'numeric' })}</div>
           </div>
           <button
             onClick={() => shiftPeriod(1)}
@@ -499,7 +579,8 @@ export const PayrollManager: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
           {filteredEmployees.map(emp => {
-            const slip = generatedPayslips[emp.id];
+            const monthKey = getPeriodPrefix(selectedPeriod);
+            const slip = generatedPayslips[emp.id]?.[monthKey];
             const isLoading = loadingId === emp.id;
             const history = employeePayslips[emp.id] ?? [];
 
@@ -554,10 +635,35 @@ export const PayrollManager: React.FC = () => {
 
                   {slip && (
                     <div className="mt-4 pt-3 border-t border-slate-200">
-                      <div className="flex justify-between text-sm font-semibold text-emerald-700">
+                      <div className="mt-3">
+                        <label className="text-xs font-semibold text-slate-500">
+                          EMERGENCY ADVANCE
+                        </label>
+
+                        <input
+                          type="number"
+                          className="mt-1 w-full border rounded-lg px-3 py-2"
+                          placeholder="₹ Amount to deduct..."
+                          onChange={(e) =>
+                            handleEmergencyAdvance(emp.id, Number(e.target.value || 0))
+                          }
+                        />
+                      </div>
+                      <div>
+                        {slip?.deductions?.emergencyAdvance ? (
+                          <div className="flex justify-between my-3 text-sm text-red-600 bg-red-50 px-3 py-1 rounded-lg">
+                            <span>⚠ Advance Recovery</span>  &nbsp; <span>-₹{slip.deductions.emergencyAdvance.toLocaleString()}</span>
+                          </div>
+                        ) : null}
+                      </div>
+
+                      <div className="flex justify-between my-1 text-sm font-semibold text-emerald-700">
                         <span>Net Payable</span>
                         <span>₹{slip.netSalary.toLocaleString()}</span>
                       </div>
+
+
+
                       <div className="flex items-center gap-1 mt-1 text-xs text-slate-500">
                         <CalendarClock size={12} />
                         <span>Based on {Math.round((slip.attendancePercentage / 100) * 30)} days present</span>

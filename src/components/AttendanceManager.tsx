@@ -253,7 +253,7 @@ export const AttendanceManager: React.FC = () => {
                 onClick={handleExportMonthly}
                 className="flex w-full items-center gap-2 px-3 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors shadow-sm font-medium whitespace-nowrap text-sm"
             >
-                <FileText size={16} /> Muster Roll
+                <FileText size={16} /> Monthly
             </button>
             <button 
                 onClick={() => setShowExportModal(true)}

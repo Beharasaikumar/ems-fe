@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Employee, ViewState, EmployeeAttendance, AttendanceStatus, LeaveRequest } from './types';
+import { Employee, ViewState, EmployeeAttendance, AttendanceStatus, Bill, LeaveRequest } from './types';
 import { INITIAL_EMPLOYEES, generateMockAttendance } from './constants';
 import { Login } from './components/Login';
 import { Layout } from './components/Layout';
@@ -13,7 +13,9 @@ import ForgotPassword from './components/ForgotPassword';
 import ResetPassword from './components/ResetPassword';
 import EmployeesView from './components/EmployeesView';
 import EmployeePortal from './components/EmployeePortal';
+import { BillManager } from './components/BillManager';
 import { LeaveManager } from './components/LeaveRequest';
+import { DailyLogs } from './components/DailyLogs';
 
 const API_BASE = process.env.REACT_APP_API_URL ?? 'http://localhost:4000/api';
 const TOKEN_KEY = 'lomaa_token';
@@ -53,6 +55,8 @@ const App: React.FC = () => {
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [viewingEmployee, setViewingEmployee] = useState<Employee | null>(null);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+
+  const [bills, setBills] = useState<Bill[]>([]);
 
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
 
@@ -289,6 +293,23 @@ const App: React.FC = () => {
   }, [isAuthenticated, currentUser]);
 
 
+  const handleAddBill = (bill: Bill) => {
+    setBills(prev => [...prev, bill]);
+  };
+
+  const handleDeleteBill = (id: string) => {
+    setBills(prev => prev.filter(b => b.id !== id));
+  };
+
+  const handleUpdateBillStatus = (
+    id: string,
+    status: 'Paid' | 'Rejected' | 'Pending'
+  ) => {
+    setBills(prev =>
+      prev.map(b => b.id === id ? { ...b, status } : b)
+    );
+  };
+
   async function handleUpdateLeaveStatus(
     id: string,
     status: 'Approved' | 'Rejected'
@@ -373,6 +394,9 @@ const App: React.FC = () => {
             />
           )}
 
+          {currentView === 'BILLS' && <BillManager />}
+
+
           {currentView === 'LEAVES' && (
             <LeaveManager
               employees={employees}
@@ -380,6 +404,8 @@ const App: React.FC = () => {
               onUpdateStatus={handleUpdateLeaveStatus}
             />
           )}
+
+          {currentView === 'DAILY_LOGS' && <DailyLogs />}
 
           <AddEmployeeModal
             isOpen={isFormModalOpen}

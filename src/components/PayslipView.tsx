@@ -445,7 +445,7 @@ export const PayslipView: React.FC<PayslipViewProps> = ({ employee: initialEmplo
 
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-20 flex items-center justify-center p-4">
       <div className="bg-white w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col animate-fade-in-up">
         <div className="bg-slate-900 text-white p-6 flex justify-between items-center shrink-0">
           <div>
@@ -524,14 +524,14 @@ export const PayslipView: React.FC<PayslipViewProps> = ({ employee: initialEmplo
                 </div>
               </div>
               <div className="gross-highlight mb-6 grid grid-cols-2 gap-4 text-sm">
-                 <div><span className="text-xs text-slate-500 uppercase tracking-wide">
-                    Monthly Gross Salary
-                  </span></div>
-                  <div className="strong font-bold text-slate-800">
-                    ₹{(payload.monthlyGrossSalary ?? payload.earnings?.gross ?? 0).toLocaleString('en-IN')}
-                  </div>
+                <div><span className="text-xs text-slate-500 uppercase tracking-wide">
+                  Monthly Gross Salary
+                </span></div>
+                <div className="strong font-bold text-slate-800">
+                  ₹{(payload.monthlyGrossSalary ?? payload.earnings?.gross ?? 0).toLocaleString('en-IN')}
                 </div>
-             
+              </div>
+
 
               {/* Salary Table */}
               <div className="border border-slate-200 rounded-lg overflow-hidden mb-8">
@@ -550,6 +550,20 @@ export const PayslipView: React.FC<PayslipViewProps> = ({ employee: initialEmplo
                     <div className="flex justify-between text-slate-700"><span>PF </span> <span>₹{payload.deductions.pf.toLocaleString()}</span></div>
                     <div className="flex justify-between text-slate-700"><span>ESI </span> <span>₹{payload.deductions.esi.toLocaleString()}</span></div>
                     <div className="flex justify-between text-slate-700"><span>Prof. Tax</span> <span>₹{payload.deductions.pt.toLocaleString()}</span></div>
+                    {payload.deductions.emergencyAdvance ? (
+                      <div className="flex justify-between text-slate-700">
+                        <span>Emergency Advance</span>
+                        <span>₹{payload.deductions.emergencyAdvance.toLocaleString()}</span>
+                      </div>
+                    ) : null}
+
+                    {payload.deductions.advanceRecovery ? (
+                      <div className="flex justify-between text-red-700 font-semibold">
+                        <span>Salary Advance Recovery</span>
+                        <span>₹{payload.deductions.advanceRecovery.toLocaleString()}</span>
+                      </div>
+                    ) : null}
+
                     <div className="flex justify-between text-slate-700"><span>TDS</span> <span>₹{payload.deductions.tax.toLocaleString()}</span></div>
                   </div>
                 </div>

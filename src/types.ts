@@ -11,9 +11,9 @@ export interface Employee {
   // Salary Structure
   monthlyGrossSalary: number;
 
-  basicSalary: number; 
-  hra: number;         
-  da: number;          
+  basicSalary: number;
+  hra: number;
+  da: number;
   specialAllowance: number;
 
   // Banking & Statutory
@@ -58,15 +58,29 @@ export interface Payslip {
     gross: number;
   };
   deductions: {
-    pf: number; // Provident Fund (12% of Basic)
-    esi: number; // Employee State Insurance (0.75% of Gross if < 21k)
-    pt: number; // Professional Tax (Standard ~200)
-    tax: number; // Income Tax (TDS) - simplified
+    pf: number;
+    esi: number;
+    pt: number;
+    tax: number;
+    advance?: number;
     totalDeductions: number;
   };
   netSalary: number;
-  remarks?: string; // AI Generated remark
+  remarks?: string; 
 }
+
+export type Bill = {
+  id: string;
+  title: string;
+  amount: number;
+  category: string;
+  status: 'Pending' | 'Paid' | 'Rejected';
+  billDate: string;
+  fileName?: string;
+  fileData?: string;
+  createdAt: string;
+  updatedAt: string;
+};
 
 export interface LeaveRequest {
   id: string;
@@ -80,6 +94,15 @@ export interface LeaveRequest {
   decidedOn?: string;
 }
 
+export interface AdminNote {
+  id: string;
+  title: string;
+  content: string;
+  category: 'Note' | 'Report' | 'Update' | 'Reminder';
+  isPinned: boolean;
+  createdAt: string;
+}
 
-export type ViewState = 'DASHBOARD' | 'EMPLOYEES' | 'ATTENDANCE' | 'PAYROLL' | 'LEAVES';
+
+export type ViewState = 'DASHBOARD' | 'EMPLOYEES' | 'ATTENDANCE' | 'PAYROLL' | 'BILLS' | 'LEAVES' | 'DAILY_LOGS';
 
