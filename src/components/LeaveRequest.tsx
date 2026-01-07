@@ -34,18 +34,19 @@ export const LeaveManager: React.FC<LeaveManagerProps> = ({ employees, leaveRequ
           </h2>
           <p className="text-slate-500 mt-1 text-sm">Review and manage employee leave applications.</p>
         </div>
-        <div className="relative">
+       
+        <div className="flex items-center gap-2">
+           <div className="relative">
           <Search className="absolute left-3 top-2.5 text-slate-400" size={18} />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by employee "
-            className="border px-10 py-1 rounded-lg w-full md:w-72"
+            className="border px-9 py-1.5 rounded-lg w-full md:w-72"
           />
 
         </div>
-        <div className="flex items-center gap-2">
           <div className="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-sm font-bold border border-amber-200">
             {pendingRequests.length} Pending
           </div>

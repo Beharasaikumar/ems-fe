@@ -5,7 +5,8 @@ import {
   Calendar, 
   TrendingUp, 
   AlertCircle, 
-  Download
+  Download,
+  Pin
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -40,6 +41,9 @@ export const Dashboard: React.FC = () => {
   const monthPrefix = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}`;
   const todayStr = current.toISOString().split('T')[0];
 
+  const [pinnedNotes, setPinnedNotes] = useState<any[]>([]);
+
+
   useEffect(() => {
     loadData();
    }, []);
@@ -66,12 +70,14 @@ export const Dashboard: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const [emps, atts] = await Promise.all([
+      const [emps, atts, pinned] = await Promise.all([
         apiFetch('/employees') as Promise<Employee[]>,
-        apiFetch(`/attendance?month=${monthPrefix}`) as Promise<AttendanceRecord[]>
+        apiFetch(`/attendance?month=${monthPrefix}`) as Promise<AttendanceRecord[]>,
+        apiFetch('/dailylogs?pinned=true') as Promise<any[]>
       ]);
       setEmployees(emps);
       setAttendance(atts);
+      setPinnedNotes(pinned);
     } catch (err: any) {
       console.error('Dashboard load failed', err);
       setError(err?.message ?? 'Failed to load data');
@@ -212,6 +218,8 @@ export const Dashboard: React.FC = () => {
         </div>
       </div>
 
+   
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
           <h4 className="text-lg font-bold text-slate-800 mb-6">Department Distribution</h4>
@@ -246,7 +254,42 @@ export const Dashboard: React.FC = () => {
         </div>
 
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-           <h4 className="text-lg font-bold text-slate-800 mb-6">Weekly Attendance Trend</h4>
+               <div className="mb-6">
+  <h4 className="flex items-center gap-2 text-lg font-bold text-slate-800 mb-4">
+    <Pin size={18} /> Notifications
+  </h4>
+
+  {pinnedNotes.length === 0 ? (
+    <p className="text-slate-400 text-sm">No notifications.</p>
+  ) : (
+    <div className="space-y-3 max-h-44 overflow-y-scroll pr-2">
+      {pinnedNotes.map(note => (
+        <div
+          key={note.id}
+          className="flex items-start gap-3 bg-emerald-50 border border-emerald-200 rounded-xl p-3"
+        >
+          <div className="w-2 h-2 mt-2 rounded-full bg-emerald-600"></div>
+
+          <div className="flex-1">
+            <p className="font-semibold text-emerald-800">
+              {note.title}
+            </p>
+
+            <p className="text-sm text-slate-700">
+              {note.content}
+            </p>
+
+            <p className="text-[11px] text-slate-500 mt-1">
+              {new Date(note.createdAt).toLocaleString()}
+            </p>
+          </div>
+        </div>
+      ))}
+    </div>
+  )}
+</div>
+          <div>
+             <h4 className="text-lg font-bold text-slate-800 mb-6">Weekly Attendance Trend</h4>
            <div className="h-64 flex items-center justify-center text-slate-400">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={weeklyTrend}>
@@ -258,6 +301,8 @@ export const Dashboard: React.FC = () => {
                 </BarChart>
               </ResponsiveContainer>
            </div>
+            </div> 
+
         </div>
       </div>
     </div>

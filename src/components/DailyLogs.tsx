@@ -61,6 +61,7 @@ export const DailyLogs: React.FC = () => {
 
 
     const onDeleteNote = async (id: string) => {
+        if (!confirm('Are you sure you want to delete this log entry?')) return;
         await apiDelete(`/dailylogs/${id}`);
         setNotes(prev => prev.filter(n => n.id !== id));
     };
@@ -164,7 +165,7 @@ export const DailyLogs: React.FC = () => {
             selectedDate?.toDateString();
 
         return matchCat && matchSearch && matchDate;
-    });
+    }).sort((a, b) => Number(b.isPinned) - Number(a.isPinned));
 
     const categoryCounts: Record<string, number> = {
         All: notes.length,
