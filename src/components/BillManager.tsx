@@ -39,8 +39,7 @@ export const BillManager: React.FC = () => {
     useState(new Date().toISOString().split('T')[0]);
   const [file, setFile] = useState<File | null>(null);
 
-  // ---------------- load bills ----------------
-  useEffect(() => {
+   useEffect(() => {
     async function load() {
       setLoading(true);
       const data = await apiGet('/bills');
@@ -50,8 +49,7 @@ export const BillManager: React.FC = () => {
     load();
   }, []);
 
-  // ---------------- upload bill ----------------
-  const handleSubmit = async (e: React.FormEvent) => {
+   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     let fileData = '';
@@ -92,21 +90,18 @@ export const BillManager: React.FC = () => {
     if (e.target.files) setFile(e.target.files[0]);
   };
 
-  // ---------------- status update ----------------
-  const updateStatus = async (id: string, status: Bill['status']) => {
+   const updateStatus = async (id: string, status: Bill['status']) => {
     const updated = await apiPut(`/bills/${id}/status`, { status });
     setBills(prev => prev.map(b => (b.id === id ? updated : b)));
   };
 
-  // ---------------- delete bill ----------------
-  const deleteBill = async (id: string) => {
+   const deleteBill = async (id: string) => {
     if (!window.confirm('Delete this bill?')) return;
     await apiDelete(`/bills/${id}`);
     setBills(prev => prev.filter(b => b.id !== id));
   };
 
-  // ---------------- open file ----------------
-  const openFile = (data?: string) => {
+   const openFile = (data?: string) => {
     if (!data) return alert('No attachment');
     const w = window.open();
     if (w) w.document.write(`<iframe src="${data}" style="width:100%;height:100%"></iframe>`);
@@ -129,8 +124,7 @@ export const BillManager: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Header & Stats */}
-      <div className="flex flex-col xl:flex-row gap-6">
+       <div className="flex flex-col xl:flex-row gap-6">
         <div className="flex-1 bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
           <div>
             <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
@@ -163,8 +157,7 @@ export const BillManager: React.FC = () => {
         </div>
       </div>
 
-      {/* Toolbar */}
-      <div className="flex flex-col sm:flex-row gap-4">
+       <div className="flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-2.5 text-slate-400" size={18} />
           <input 
@@ -188,8 +181,7 @@ export const BillManager: React.FC = () => {
         </div>
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+       <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
         <table className="w-full text-left">
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
@@ -280,8 +272,7 @@ export const BillManager: React.FC = () => {
         </table>
       </div>
 
-      {/* Upload Modal */}
-      {isAdding && (
+       {isAdding && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-fade-in-up">
             <div className="bg-slate-900 p-4 text-white flex justify-between items-center">

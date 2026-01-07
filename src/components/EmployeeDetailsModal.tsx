@@ -9,7 +9,7 @@ interface EmployeeDetailsModalProps {
   onDeleted?: (id: string) => void;  
 }
 
-const API_BASE = process.env.REACT_APP_API_URL ?? 'http://localhost:4000/api';
+const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:4000/api';
 const TOKEN_KEY = 'lomaa_token';
 
 function getToken(): string | null {

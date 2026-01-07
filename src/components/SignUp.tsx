@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { User, Mail, Lock, Leaf } from 'lucide-react';
 
-const API_BASE = process.env.REACT_APP_API_URL ?? 'http://localhost:4000/api';
+const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:4000/api';
 
 export default function SignUp({ onGoLogin }: { onGoLogin: () => void }) {
   const [form, setForm] = useState({ username: '', email: '', password: '' });

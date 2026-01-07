@@ -9,7 +9,7 @@ interface PayslipViewProps {
   onClose: () => void;
 }
 
-const API_BASE = process.env.REACT_APP_API_URL ?? 'http://localhost:4000/api';
+const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:4000/api';
 const TOKEN_KEY = 'lomaa_token';
 function getToken(): string | null { return localStorage.getItem(TOKEN_KEY); }
 
@@ -445,7 +445,7 @@ export const PayslipView: React.FC<PayslipViewProps> = ({ employee: initialEmplo
 
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-20 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-white w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col animate-fade-in-up">
         <div className="bg-slate-900 text-white p-6 flex justify-between items-center shrink-0">
           <div>

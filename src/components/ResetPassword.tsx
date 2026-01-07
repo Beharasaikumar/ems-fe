@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Lock, Leaf } from 'lucide-react';
 
-const API_BASE = process.env.REACT_APP_API_URL ?? 'http://localhost:4000/api';
+const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:4000/api';
 
 export default function ResetPassword({ token, onGoLogin }: { token: string; onGoLogin: () => void }) {
   const [password, setPassword] = useState('');

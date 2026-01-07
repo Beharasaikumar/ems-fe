@@ -17,7 +17,7 @@ import { BillManager } from './components/BillManager';
 import { LeaveManager } from './components/LeaveRequest';
 import { DailyLogs } from './components/DailyLogs';
 
-const API_BASE = process.env.REACT_APP_API_URL ?? 'http://localhost:4000/api';
+const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:4000/api';
 const TOKEN_KEY = 'lomaa_token';
 
 type AuthPage = 'login' | 'forgot' | 'reset';
