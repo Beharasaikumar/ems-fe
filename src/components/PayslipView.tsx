@@ -225,8 +225,14 @@ export const PayslipView: React.FC<PayslipViewProps> = ({ employee: initialEmplo
         format: 'a4'
       });
 
-      const imgWidth = 210; // A4 width mm
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      const imgWidth = 210;
+      const pageHeight = 297;
+
+      let imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+      if (imgHeight > pageHeight) {
+        imgHeight = pageHeight;
+      }
 
       pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
       return pdf.output('blob');
@@ -595,19 +601,19 @@ export const PayslipView: React.FC<PayslipViewProps> = ({ employee: initialEmplo
           )}
         </div>
 
-        <div className="p-6 bg-white border-t border-slate-200 flex gap-4 justify-center shrink-0">
-          <button
+        <div className="p-6 bg-white border-t border-slate-200 flex gap-4 justify-end shrink-0">
+          {/* <button
             onClick={() => handleAction('WHATSAPP')}
             disabled={isGenerating}
             className="flex items-center gap-2 px-6 py-2.5 bg-green-500 hover:bg-green-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
           >
             <Share2 size={18} /> WhatsApp PDF
-          </button>
+          </button> */}
 
           <button
             onClick={() => handleAction('EMAIL')}
             disabled={isGenerating}
-            className="flex items-center gap-2 px-6 py-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
           >
             <Mail size={18} /> Email PDF
           </button>
@@ -636,9 +642,9 @@ export const PayslipView: React.FC<PayslipViewProps> = ({ employee: initialEmplo
             <Mail size={18} /> {sending ? 'Sending…' : 'Send Email'}
           </button> */}
 
-          <button onClick={() => window.print()} className="flex items-center gap-2 px-6 py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-medium transition-colors">
+          {/* <button onClick={() => window.print()} className="flex items-center gap-2 px-6 py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-medium transition-colors">
             <Download size={18} /> Print
-          </button>
+          </button> */}
         </div>
       </div>
     </div>
