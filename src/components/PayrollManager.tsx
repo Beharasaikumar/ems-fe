@@ -29,6 +29,8 @@ export const PayrollManager: React.FC = () => {
   const [latestLoading, setLatestLoading] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState<Date>(new Date());
+  const [advanceInput, setAdvanceInput] = useState<Record<string, number>>({});
+
 
   const formatPeriodLabel = (d: Date) =>
     d.toLocaleString('default', { month: 'short', year: 'numeric' });
@@ -470,15 +472,14 @@ export const PayrollManager: React.FC = () => {
     exportToCSV(allData, `Payroll_Register_${startMonth}_to_${endMonth}.csv`);
   };
 
-  const handleEmergencyAdvance = async (empId: string, value: number) => {
+const handleEmergencyAdvance = async (empId: string, value: number) => {
   const monthKey = getPeriodPrefix(selectedPeriod);
-
   const slip = generatedPayslips[empId]?.[monthKey];
   if (!slip) return;
 
-  const updatedAdvance = (slip.deductions.emergencyAdvance ?? 0) + value;
+  const existing = slip.deductions.emergencyAdvance ?? 0;
+  const updatedAdvance = existing + value;
 
-  // optimistic UI update
   setGeneratedPayslips(prev => ({
     ...prev,
     [empId]: {
@@ -501,7 +502,13 @@ export const PayrollManager: React.FC = () => {
       advanceRecovery: slip.deductions.advanceRecovery ?? 0
     })
   });
+
+    setAdvanceInput(prev => ({
+    ...prev,
+    [empId]: ''
+  }));
 };
+
 
 
 
@@ -640,14 +647,22 @@ export const PayrollManager: React.FC = () => {
                           EMERGENCY ADVANCE
                         </label>
 
-                        <input
-                          type="number"
-                          className="mt-1 w-full border rounded-lg px-3 py-2"
-                          placeholder="₹ Amount to deduct..."
-                          onChange={(e) =>
-                            handleEmergencyAdvance(emp.id, Number(e.target.value || 0))
-                          }
-                        />
+                     <input
+  type="number"
+  className="mt-1 w-full border rounded-lg px-3 py-2"
+  placeholder="₹ Amount to deduct..."
+  value={advanceInput[emp.id] ??  ''}
+  onChange={(e) =>
+    setAdvanceInput(prev => ({
+      ...prev,
+      [emp.id]: Number(e.target.value || 0)
+    }))
+  }
+  onBlur={() =>
+    handleEmergencyAdvance(emp.id, advanceInput[emp.id] ?? 0)
+  }
+/>
+
                       </div>
                       <div>
                         {slip?.deductions?.emergencyAdvance ? (

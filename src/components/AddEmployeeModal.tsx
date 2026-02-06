@@ -91,7 +91,8 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
     switch (name) {
       case 'id':
         if (!value.trim()) return 'Employee ID is required';
-        if (!/^EMP\d{3,10}$/.test(value)) return 'Format: EMP001';
+        if (!/^[A-Za-z0-9_-]+$/.test(value))
+          return 'Only letters, numbers, - and _ allowed';
         return '';
       case 'name':
         if (!value.trim()) return 'Full name is required';
@@ -206,7 +207,7 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
         department: formData.department,
         joinDate: formData.joinDate,
         pan: formData.pan,
-        monthlyGrossSalary: formData.monthlyGrossSalary? Number(formData.monthlyGrossSalary) : 0,
+        monthlyGrossSalary: formData.monthlyGrossSalary ? Number(formData.monthlyGrossSalary) : 0,
         basicSalary: formData.basicSalary ? Number(formData.basicSalary) : 0,
         hra: formData.hra ? Number(formData.hra) : 0,
         da: formData.da ? Number(formData.da) : 0,
@@ -378,6 +379,11 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
                     <option value="Sales">Sales</option>
                     <option value="Design">Design</option>
                     <option value="Marketing">Marketing</option>
+                    <option value="Marketing">AI Engineering</option>
+                    <option value="Marketing">Finance</option>
+                    <option value="Marketing">Administration</option>
+                    <option value="Marketing">Customer Support</option>
+                    <option value="Marketing">Driver</option>
                   </select>
                   {showError('department') && <p className="text-xs text-red-600 mt-1">{showError('department')}</p>}
 
@@ -428,9 +434,9 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
                 </div>
                 {showError('monthlyGrossSalary') && <p className="text-xs text-red-600 mt-1">{showError('monthlyGrossSalary')}</p>}
               </div>
-              
+
               {/* Salary Inputs */}
-             <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-200">
+              <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-200">
                 <div className="bg-white p-3 rounded border border-slate-200">
                   <span className="block text-xs text-slate-500 mb-1">Basic Salary (40%)</span>
                   <div className="flex items-center gap-2">
@@ -477,18 +483,18 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Bank Account No</label>
                 <div className="relative">
                   <CreditCard className="absolute left-3 top-2.5 text-slate-400" size={14} />
-                  <input name="bankAccountNumber" value={formData.bankAccountNumber} onChange={handleChange} onBlur={handleBlur} aria-invalid={!!errors.bankAccountNumber} placeholder="Optional" required className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-emerald-500 outline-none text-sm" />
+                  <input name="bankAccountNumber" value={formData.bankAccountNumber} onChange={handleChange} onBlur={handleBlur} placeholder="Optional" className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-emerald-500 outline-none text-sm" />
                   {showError('bankAccountNumber') && <p className="text-xs text-red-600 mt-1">{showError('bankAccountNumber')}</p>}
                 </div>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">PF Account No</label>
-                <input name="pfAccountNumber" value={formData.pfAccountNumber} onChange={handleChange} onBlur={handleBlur} aria-invalid={!!errors.pfAccountNumber} placeholder="Optional" required className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-emerald-500 outline-none text-sm uppercase" />
+                <input name="pfAccountNumber" value={formData.pfAccountNumber} onChange={handleChange} onBlur={handleBlur} placeholder="Optional" className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-emerald-500 outline-none text-sm uppercase" />
                 {showError('pfAccountNumber') && <p className="text-xs text-red-600 mt-1">{showError('pfAccountNumber')}</p>}
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">ESI Number</label>
-                <input name="esiNumber" value={formData.esiNumber} onChange={handleChange} onBlur={handleBlur} aria-invalid={!!errors.esiNumber} placeholder="Optional" required className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-emerald-500 outline-none text-sm" />
+                <input name="esiNumber" value={formData.esiNumber} onChange={handleChange} onBlur={handleBlur} placeholder="Optional" className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-emerald-500 outline-none text-sm" />
                 {showError('esiNumber') && <p className="text-xs text-red-600 mt-1">{showError('esiNumber')}</p>}
               </div>
             </div>
