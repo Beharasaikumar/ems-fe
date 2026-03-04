@@ -55,10 +55,10 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onGoForgot }) => {
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col border border-slate-100">
-        <div className="bg-slate-900 p-8 text-center relative overflow-hidden">
+        <div className="pb-3 pt-8 px-8 text-center relative overflow-hidden shadow-md rounded-b-2xl">
           <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 via-green-500 to-teal-500"></div>
           <div className="flex items-center justify-center gap-3 mb-2">
-            <div className="relative w-[200px] h-[80px] rounded-full">
+            <div className="relative w-[200px] h-[40px] rounded-full">
               <img
                 src="/logo.png"
                 alt="Company Logo"
@@ -66,7 +66,10 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onGoForgot }) => {
               />
             </div>
           </div>
-          <p className="text-slate-400 mt-4 text-sm">Sign in to Employee Portal</p>
+          <p className="text-slate-400 mt-4 text-xs">Sign in to Employee Portal
+            <div className="w-20 h-1 mx-auto bg-gradient-to-r from-emerald-500 via-green-500 to-teal-500 rounded-full mt-4"></div>
+
+          </p>
         </div>
 
         <form onSubmit={handleSubmit} className="p-8 space-y-6">

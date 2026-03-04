@@ -1,6 +1,6 @@
 import { Employee, AttendanceStatus } from './types';
 
-export const PF_RATE = 0.12;
+export const PF_RATE = 0.24;
 export const ESI_EMPLOYEE_RATE = 0.0075;
 export const ESI_WAGE_LIMIT = 21000;
 export const PROFESSIONAL_TAX = 200;
