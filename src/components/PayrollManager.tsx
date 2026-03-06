@@ -29,7 +29,7 @@ export const PayrollManager: React.FC = () => {
   const [latestLoading, setLatestLoading] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState<Date>(new Date());
-  const [advanceInput, setAdvanceInput] = useState<Record<string, number>>({});
+  const [advanceInput, setAdvanceInput] = useState<Record<string, number | ''>>({});
 
 
   const formatPeriodLabel = (d: Date) =>
@@ -436,9 +436,11 @@ export const PayrollManager: React.FC = () => {
           const da = Math.round(((emp.da ?? 0) / totalDaysInMonth) * paidDays);
           const special = Math.round(((emp.specialAllowance ?? 0) / totalDaysInMonth) * paidDays);
           const gross = basic + hra + da + special;
-           const pf = Math.round(basic * 0.12);
-          const esi = gross < 21000 ? Math.ceil(gross * 0.0075) : 0;
-          const pt = 200;
+          const pf = emp.pfEnabled ? Math.round(basic * 0.12) : 0;
+          const esi =
+            emp.esiEnabled && gross < 21000
+              ? Math.ceil(gross * 0.0075)
+              : 0; const pt = 200;
           const tax = gross > 50000 ? Math.round((gross - 50000) * 0.1) : 0;
           const totalDeductions = pf + esi + pt + tax;
           const netSalary = gross - totalDeductions;
@@ -472,44 +474,57 @@ export const PayrollManager: React.FC = () => {
     exportToCSV(allData, `Payroll_Register_${startMonth}_to_${endMonth}.csv`);
   };
 
-const handleEmergencyAdvance = async (empId: string, value: number) => {
-  const monthKey = getPeriodPrefix(selectedPeriod);
-  const slip = generatedPayslips[empId]?.[monthKey];
-  if (!slip) return;
+  const handleEmergencyAdvance = async (empId: string, value: number) => {
+    const monthKey = getPeriodPrefix(selectedPeriod);
+    const slip = generatedPayslips[empId]?.[monthKey];
+    if (!slip) return;
 
-  const existing = slip.deductions.emergencyAdvance ?? 0;
-  const updatedAdvance = existing + value;
+    const existing = slip.deductions.emergencyAdvance ?? 0;
 
-  setGeneratedPayslips(prev => ({
-    ...prev,
-    [empId]: {
-      ...prev[empId],
-      [monthKey]: {
-        ...slip,
-        deductions: {
-          ...slip.deductions,
-          emergencyAdvance: updatedAdvance
+    let updatedAdvance = existing + value;
+
+    if (updatedAdvance < 0) updatedAdvance = 0;
+
+    setGeneratedPayslips(prev => ({
+      ...prev,
+      [empId]: {
+        ...prev[empId],
+        [monthKey]: {
+          ...slip,
+          deductions: {
+            ...slip.deductions,
+            emergencyAdvance: updatedAdvance
+          }
         }
       }
-    }
-  }));
+    }));
 
-  await apiFetch(`/payroll/generate/${empId}`, {
-    method: 'POST',
-    body: JSON.stringify({
-      month: monthKey,
-      emergencyAdvance: updatedAdvance,
-      advanceRecovery: slip.deductions.advanceRecovery ?? 0
-    })
-  });
+    await apiFetch(`/payroll/generate/${empId}`, {
+      method: 'POST',
+      body: JSON.stringify({
+        month: monthKey,
+        emergencyAdvance: updatedAdvance,
+        advanceRecovery: slip.deductions.advanceRecovery ?? 0
+      })
+    });
 
     setAdvanceInput(prev => ({
-    ...prev,
-    [empId]: ''
-  }));
-};
+      ...prev,
+      [empId]: ''
+    }));
+  };
 
+  const giveAdvance = (empId: string) => {
+    const value = Number(advanceInput[empId] || 0);
+    if (!value) return;
+    handleEmergencyAdvance(empId, value);
+  };
 
+  const returnAdvance = (empId: string) => {
+    const value = Number(advanceInput[empId] || 0);
+    if (!value) return;
+    handleEmergencyAdvance(empId, -value);
+  };
 
 
   return (
@@ -644,25 +659,47 @@ const handleEmergencyAdvance = async (empId: string, value: number) => {
                     <div className="mt-4 pt-3 border-t border-slate-200">
                       <div className="mt-3">
                         <label className="text-xs font-semibold text-slate-500">
-                          EMERGENCY ADVANCE
+                          ADVANCE / RETURN ADJUSTMENT
                         </label>
 
-                     <input
-  type="number"
-  className="mt-1 w-full border rounded-lg px-3 py-2"
-  placeholder="₹ Amount to deduct..."
-  value={advanceInput[emp.id] ??  ''}
-  onChange={(e) =>
-    setAdvanceInput(prev => ({
-      ...prev,
-      [emp.id]: Number(e.target.value || 0)
-    }))
-  }
-  onBlur={() =>
-    handleEmergencyAdvance(emp.id, advanceInput[emp.id] ?? 0)
-  }
-/>
+                        {slip?.deductions?.emergencyAdvance > 0 && (
+                          <div className="text-xs text-amber-600 mb-1">
+                            Current Advance Balance: ₹{slip.deductions.emergencyAdvance.toLocaleString()}
+                          </div>
+                        )}
 
+                        <div className="flex gap-2 mt-1">
+                          <input
+                            type="number"
+                            className="flex-1 border rounded-lg px-3 py-2"
+                            placeholder="Enter amount"
+                            value={advanceInput[emp.id] ?? ''}
+                            onChange={(e) =>
+                              setAdvanceInput(prev => ({
+                                ...prev,
+                                [emp.id]: Number(e.target.value || 0)
+                              }))
+                            }
+                          />
+
+                          <button
+                            onClick={() => giveAdvance(emp.id)}
+                            className="px-3 py-2 w-8 bg-white  text-gray-600 rounded-lg text-sm hover:bg-gray-50 border border-gray-200"
+                          >
+                            +
+                          </button>
+
+                          <button
+                            onClick={() => returnAdvance(emp.id)}
+                            className="px-3 py-2 w-8 bg-white  text-gray-600 rounded-lg text-sm hover:bg-gray-50 border border-gray-200"
+                          >
+                            -
+                          </button>
+                        </div>
+
+                        <p className="text-xs text-slate-400 mt-1">
+                          Use + amount for advance, - amount if employee returned money
+                        </p>
                       </div>
                       <div>
                         {slip?.deductions?.emergencyAdvance ? (
@@ -678,10 +715,21 @@ const handleEmergencyAdvance = async (empId: string, value: number) => {
                       </div>
 
 
-
                       <div className="flex items-center gap-1 mt-1 text-xs text-slate-500">
                         <CalendarClock size={12} />
                         <span>Based on {Math.round((slip.attendancePercentage / 100) * 30)} days present</span>
+                      </div>
+                      <div className="flex justify-between text-sm py-3">
+                        <span>ESI Status</span>
+                        <span className={`font-medium ${emp.esiEnabled ? 'text-green-600' : 'text-red-500'}`}>
+                          {emp.esiEnabled ? 'Enabled' : 'Disabled'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-sm py-2">
+                        <span>PF Status</span>
+                        <span className={`font-medium ${emp.pfEnabled ? 'text-green-600' : 'text-red-500'}`}>
+                          {emp.pfEnabled ? 'Enabled' : 'Disabled'}
+                        </span>
                       </div>
                     </div>
                   )}

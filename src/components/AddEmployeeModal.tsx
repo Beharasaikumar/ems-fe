@@ -32,7 +32,9 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
     specialAllowance: '',
     bankAccountNumber: '',
     pfAccountNumber: '',
-    esiNumber: ''
+    esiNumber: '',
+    esiEnabled: true,
+    pfEnabled: true
   });
 
   const [saving, setSaving] = useState(false);
@@ -58,7 +60,9 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
         specialAllowance: employeeToEdit.specialAllowance ? String(employeeToEdit.specialAllowance) : '',
         bankAccountNumber: employeeToEdit.bankAccountNumber ?? '',
         pfAccountNumber: employeeToEdit.pfAccountNumber ?? '',
-        esiNumber: employeeToEdit.esiNumber ?? ''
+        esiNumber: employeeToEdit.esiNumber ?? '',
+        esiEnabled: employeeToEdit.esiEnabled ?? true,
+        pfEnabled: employeeToEdit.pfEnabled ?? true
       });
       setTouched({});
       setErrors({});
@@ -79,7 +83,9 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
         specialAllowance: '',
         bankAccountNumber: '',
         pfAccountNumber: '',
-        esiNumber: ''
+        esiNumber: '',
+        esiEnabled: true,
+        pfEnabled: true
       });
       setTouched({});
       setErrors({});
@@ -214,7 +220,9 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
         specialAllowance: formData.specialAllowance ? Number(formData.specialAllowance) : 0,
         bankAccountNumber: formData.bankAccountNumber,
         pfAccountNumber: formData.pfAccountNumber,
-        esiNumber: formData.esiNumber
+        esiNumber: formData.esiNumber,
+        esiEnabled: formData.esiEnabled,
+        pfEnabled: formData.pfEnabled
       };
 
       onSubmit(payload);
@@ -379,11 +387,11 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
                     <option value="Sales">Sales</option>
                     <option value="Design">Design</option>
                     <option value="Marketing">Marketing</option>
-                    <option value="Marketing">AI Engineering</option>
-                    <option value="Marketing">Finance</option>
-                    <option value="Marketing">Administration</option>
-                    <option value="Marketing">Customer Support</option>
-                    <option value="Marketing">Driver</option>
+                    <option value="AI Engineering">AI Engineering</option>
+                    <option value="Finance">Finance</option>
+                    <option value="Administration">Administration</option>
+                    <option value="Customer Support">Customer Support</option>
+                    <option value="Driver">Driver</option>
                   </select>
                   {showError('department') && <p className="text-xs text-red-600 mt-1">{showError('department')}</p>}
 
@@ -496,6 +504,46 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
                 <label className="block text-xs font-semibold text-slate-700 mb-1">ESI Number</label>
                 <input name="esiNumber" value={formData.esiNumber} onChange={handleChange} onBlur={handleBlur} placeholder="Optional" className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-emerald-500 outline-none text-sm" />
                 {showError('esiNumber') && <p className="text-xs text-red-600 mt-1">{showError('esiNumber')}</p>}
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  ESI Enabled
+                </label>
+
+                <select
+                  name="esiEnabled"
+                  value={formData.esiEnabled ? "true" : "false"}
+                  onChange={(e) =>
+                    setFormData(prev => ({
+                      ...prev,
+                      esiEnabled: e.target.value === "true"
+                    }))
+                  }
+                  className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-emerald-500 outline-none text-sm"
+                >
+                  <option value="true">Enabled</option>
+                  <option value="false">Disabled</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  PF Enabled
+                </label>
+
+                <select
+                  name="pfEnabled"
+                  value={formData.pfEnabled ? "true" : "false"}
+                  onChange={(e) =>
+                    setFormData(prev => ({
+                      ...prev,
+                      pfEnabled: e.target.value === "true"
+                    }))
+                  }
+                  className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-emerald-500 outline-none text-sm"
+                >
+                  <option value="true">Enabled</option>
+                  <option value="false">Disabled</option>
+                </select>
               </div>
             </div>
           </div>

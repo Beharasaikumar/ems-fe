@@ -20,6 +20,8 @@ export interface Employee {
   bankAccountNumber?: string;
   pfAccountNumber?: string;
   esiNumber?: string;
+  esiEnabled?: boolean;
+  pfEnabled?: boolean;
 
   // sickleave: number;
   // casualleave: number;
