@@ -73,6 +73,30 @@ export const PayslipView: React.FC<PayslipViewProps> = ({ employee: initialEmplo
 
   const payload = remotePayslip ?? (initialPayslip as any);
 
+const monthStr = payload.month ?? '';
+const year = payload.year ?? new Date().getFullYear();
+
+const month = parseInt(String(monthStr).split('-')[1] ?? '1', 10);
+
+const today = new Date();
+const currentMonth = today.getMonth() + 1;
+const currentYear = today.getFullYear();
+
+// working days only till today if current month
+let workingDays = new Date(year, month, 0).getDate();
+
+if (year === currentYear && month === currentMonth) {
+  workingDays = today.getDate();
+}
+
+// assume all present unless absent recorded
+const absentDays =
+  employee?.absentDays ??
+  payload?.absentDays ??
+  0;
+
+// final LOP
+const lopDays = absentDays;
 
   const monthLabel = (() => {
     try {
@@ -94,8 +118,6 @@ export const PayslipView: React.FC<PayslipViewProps> = ({ employee: initialEmplo
     const bank = employee?.bankAccountNumber ?? payload.employee?.bankAccountNumber ?? 'N/A';
     const pan = (employee?.pan ?? payload.employee?.pan ?? 'N/A').toString().toUpperCase();
     const pf = employee?.pfAccountNumber ?? payload.employee?.pfAccountNumber ?? 'N/A';
-    const daysPresent = Math.round(((employee?.attendancePercentage ?? payload.attendancePercentage ?? 0) / 100) * 30);
-    const remarks = payload.remarks ?? employee?.remarks ?? '-';
 
     const fmt = (n?: number) => `₹${(n ?? 0).toLocaleString('en-IN')}`;
 
@@ -113,7 +135,7 @@ export const PayslipView: React.FC<PayslipViewProps> = ({ employee: initialEmplo
  PAN: ${pan}
  PF No: ${pf}
 
- Days Present: ${daysPresent} days
+ LOP Days: ${lopDays} days
 
 ------------------------------
  Earnings
@@ -134,7 +156,7 @@ export const PayslipView: React.FC<PayslipViewProps> = ({ employee: initialEmplo
 ------------------------------
  NET PAY: ${fmt(payload.netSalary)}
 
- HR Remarks: ${remarks} 
+HR Remarks: ${payload.remarks ?? employee?.remarks ?? '—'}
 
  This is a system-generated payslip.
   `.trim();
@@ -167,15 +189,12 @@ export const PayslipView: React.FC<PayslipViewProps> = ({ employee: initialEmplo
         throw new Error(bodyText || `PDF generation failed (${res.status})`);
       }
 
-      // Ensure we read as binary
       const ab = await res.arrayBuffer();
       if (!ab || ab.byteLength === 0) throw new Error('Empty response from server');
 
-      // Quick magic-bytes check for `%PDF-`
       const header = new Uint8Array(ab.slice(0, 5));
       const headerStr = String.fromCharCode(...header);
       if (!headerStr.startsWith('%PDF')) {
-        // It isn't a PDF — convert to text and show helpful message
         const text = new TextDecoder().decode(ab);
         console.error('Server returned non-PDF body:', text);
         throw new Error('Server returned non-PDF data. Check server logs or SMTP config.');
@@ -525,8 +544,8 @@ export const PayslipView: React.FC<PayslipViewProps> = ({ employee: initialEmplo
                   <span className="font-semibold text-slate-700 uppercase">{employee?.pfAccountNumber ?? payload.employee?.pfAccountNumber ?? 'N/A'}</span>
                 </div>
                 <div className="flex flex-col text-right">
-                  <span className="text-xs text-slate-500 uppercase tracking-wide">Days Present</span>
-                  <span className="font-semibold text-slate-700">{Math.round(((employee.attendancePercentage ?? payload.attendancePercentage ?? 0) / 100) * 30)} days</span>
+                  <span className="text-xs text-slate-500 uppercase tracking-wide">LOP Days</span>
+                  <span className="font-semibold text-red-600">{lopDays} days</span>
                 </div>
               </div>
               <div className="gross-highlight mb-6 grid grid-cols-2 gap-4 text-sm">
