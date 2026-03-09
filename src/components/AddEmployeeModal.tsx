@@ -443,7 +443,7 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
                 {showError('monthlyGrossSalary') && <p className="text-xs text-red-600 mt-1">{showError('monthlyGrossSalary')}</p>}
               </div>
 
-              {/* Salary Inputs */}
+              
               <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-200">
                 <div className="bg-white p-3 rounded border border-slate-200">
                   <span className="block text-xs text-slate-500 mb-1">Basic Salary (40%)</span>
