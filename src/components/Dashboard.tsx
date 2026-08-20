@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Employee, EmployeeAttendance } from '../types';
-import { 
-  Users, 
-  Calendar, 
-  TrendingUp, 
-  AlertCircle, 
+import {
+  Users,
+  Calendar,
+  TrendingUp,
+  UserX,
   Download,
   Pin
 } from 'lucide-react';
@@ -89,16 +89,14 @@ export const Dashboard: React.FC = () => {
   const stats = useMemo(() => {
     const totalEmployees = employees.length;
 
-     const todaysAttendanceIds = new Set<string>();
      let presentToday = 0;
+     let absentOrLeaveToday = 0;
      attendance.forEach(r => {
       if (r.date === todayStr){
-        todaysAttendanceIds.add(r.employeeId);
-        if( r.status === 'Present') presentToday++;
+        if (r.status === 'Present') presentToday++;
+        else if (r.status === 'Absent' || r.status === 'Leave') absentOrLeaveToday++;
       }
     });
-
-    const pendingActions = Math.max(0, totalEmployees - todaysAttendanceIds.size);
 
      const deptCounts: Record<string, number> = {};
     employees.forEach(e => {
@@ -113,7 +111,7 @@ export const Dashboard: React.FC = () => {
       presentToday,
       attendanceRate: totalEmployees ? Math.round((presentToday / totalEmployees) * 100) : 0,
       deptData,
-      pendingActions
+      absentOrLeaveToday
     };
   }, [employees, attendance, todayStr]);
 
@@ -122,7 +120,7 @@ export const Dashboard: React.FC = () => {
       { Metric: 'Total Employees', Value: stats.totalEmployees },
       { Metric: 'Present Today', Value: stats.presentToday },
       { Metric: 'Attendance Rate', Value: `${stats.attendanceRate}%` },
-      { Metric: 'Pending Attendance', Value: stats.pendingActions },
+      { Metric: 'Absent / Leave Today', Value: stats.absentOrLeaveToday },
       ...stats.deptData.map(d => ({ Metric: `Dept: ${d.name}`, Value: d.value }))
     ];
     exportToCSV(data, `Dashboard_Stats_${new Date().toISOString().split('T')[0]}.csv`);
@@ -166,11 +164,11 @@ export const Dashboard: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-fade-in">
-        <div className="flex justify-between items-center mb-2">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-2">
         <h2 className="text-2xl font-bold text-slate-800">Overview</h2>
-        <button 
+        <button
           onClick={handleExport}
-          className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors text-sm font-medium shadow-sm"
+          className="flex items-center justify-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors text-sm font-medium shadow-sm w-full sm:w-auto"
         >
           <Download size={16} /> Export Overview
         </button>
@@ -199,6 +197,16 @@ export const Dashboard: React.FC = () => {
 
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex items-center justify-between">
           <div>
+            <p className="text-sm font-medium text-slate-500">Absent / Leave Today</p>
+            <h3 className="text-3xl font-bold text-slate-800 mt-1">{stats.absentOrLeaveToday}</h3>
+          </div>
+          <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center">
+            <UserX size={24} />
+          </div>
+        </div>
+        
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex items-center justify-between">
+          <div>
             <p className="text-sm font-medium text-slate-500">Attendance Rate</p>
             <h3 className="text-3xl font-bold text-slate-800 mt-1">{stats.attendanceRate}%</h3>
           </div>
@@ -207,15 +215,6 @@ export const Dashboard: React.FC = () => {
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium text-slate-500">Pending Attendance</p>
-            <h3 className="text-3xl font-bold text-slate-800 mt-1">{stats.pendingActions}</h3>
-          </div>
-          <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center">
-            <AlertCircle size={24} />
-          </div>
-        </div>
       </div>
 
    

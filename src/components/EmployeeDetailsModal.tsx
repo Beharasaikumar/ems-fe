@@ -126,7 +126,7 @@ export const EmployeeDetailsModal: React.FC<EmployeeDetailsModalProps> = ({ empl
           ) : (
             <>
               {/* Work Info */}
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="space-y-1">
                   <div className="flex items-center gap-2 text-slate-500 text-xs uppercase font-bold tracking-wide">
                     <Briefcase size={14} /> Department
@@ -209,7 +209,7 @@ export const EmployeeDetailsModal: React.FC<EmployeeDetailsModalProps> = ({ empl
                 <h4 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
                   <ShieldCheck size={16} className="text-emerald-600" /> Statutory & Banking
                 </h4>
-                <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                   <div>
                     <p className="text-xs text-slate-500">Bank Account</p>
                     <p className="font-medium text-slate-800">{employee?.bankAccountNumber ?? 'N/A'}</p>

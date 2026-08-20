@@ -82,7 +82,7 @@ export const EmployeeLeaves: React.FC<Props> = ({
           <option value="Paid">Paid Leave</option>
         </select>
 
-        <div className="grid grid-cols-2 gap-3 mb-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
           <input
             type="date"
             value={startDate}

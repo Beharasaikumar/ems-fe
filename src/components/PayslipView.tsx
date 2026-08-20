@@ -3,6 +3,7 @@ import { Employee, Payslip } from '../types';
 import { X, Download, Share2, Mail, CheckCircle, Leaf, Loader2 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
+import { mergeEarningsForDisplay } from '../utils/annualPayroll';
 interface PayslipViewProps {
   employee?: Employee;
   payslip: Payslip | { id: string; employeeId?: string; month?: string; year?: number; netSalary?: number; };
@@ -141,8 +142,7 @@ const lopDays = absentDays;
  Earnings
 • Basic Salary: ${fmt(payload.earnings.basic)}
 • HRA: ${fmt(payload.earnings.hra)}
-• DA: ${fmt(payload.earnings.da)}
-• Special Allowance: ${fmt(payload.earnings.specialAllowance)}
+• Special Allowance: ${fmt(mergeEarningsForDisplay(payload.earnings).special)}
  Gross Earnings: ${fmt(payload.earnings.gross)}
 
 ------------------------------
@@ -493,7 +493,11 @@ HR Remarks: ${payload.remarks ?? employee?.remarks ?? '—'}
           {loading ? (
             <div className="text-center py-12">Loading payslip…</div>
           ) : (
-            <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-8 max-w-2xl mx-auto" id="printable-area">
+            <div className="relative bg-white border border-slate-200 shadow-sm rounded-xl p-8 max-w-2xl mx-auto overflow-hidden" id="printable-area">
+              <div className="absolute inset-0 z-0 flex items-center justify-center overflow-hidden pointer-events-none select-none">
+                <img src="/watermark.png" alt="" className="w-72 h-72 object-contain opacity-[0.12]" />
+              </div>
+              <div className="relative z-10">
               <div className="text-center border-b border-slate-200 pb-6 mb-6">
                 <div className="flex items-center justify-center gap-3 mb-2">
                   <div className="relative w-[200px] h-[80px] rounded-full">
@@ -504,6 +508,9 @@ HR Remarks: ${payload.remarks ?? employee?.remarks ?? '—'}
                     />
                   </div>
                 </div>
+                <h3 className="font-extrabold text-base text-slate-800">LOMAA IT SOLUTIONS</h3>
+                <p className="text-[10px] text-slate-400 mt-0.5">GSTIN: 37AALFL9327Q1ZC</p>
+                <p className="text-[10px] text-slate-400">1-118-24/2, 2nd floor, sector 12, near Ushodaya Junc., MVP, Visakhapatnam, AP - 530017</p>
               </div>
 
               <div className="text-center mb-8">
@@ -568,8 +575,7 @@ HR Remarks: ${payload.remarks ?? employee?.remarks ?? '—'}
                   <div className="p-4 space-y-3">
                     <div className="flex justify-between"><span>Basic Salary</span> <span>₹{payload.earnings.basic.toLocaleString()}</span></div>
                     <div className="flex justify-between"><span>HRA</span> <span>₹{payload.earnings.hra.toLocaleString()}</span></div>
-                    <div className="flex justify-between"><span>DA</span> <span>₹{payload.earnings.da.toLocaleString()}</span></div>
-                    <div className="flex justify-between"><span>Special Allow.</span> <span>₹{payload.earnings.specialAllowance.toLocaleString()}</span></div>
+                    <div className="flex justify-between"><span>Special Allow.</span> <span>₹{mergeEarningsForDisplay(payload.earnings).special.toLocaleString()}</span></div>
                   </div>
                   <div className="p-4 space-y-3 border-l border-slate-200 bg-slate-50/50">
                     <div className="flex justify-between text-slate-700"><span>PF </span> <span>₹{payload.deductions.pf.toLocaleString()}</span></div>
@@ -614,6 +620,7 @@ HR Remarks: ${payload.remarks ?? employee?.remarks ?? '—'}
 
               <div className="mt-8 text-center">
                 <p className="text-[10px] text-slate-400">This is a system-generated payslip and does not require a signature.</p>
+              </div>
               </div>
             </div>
 

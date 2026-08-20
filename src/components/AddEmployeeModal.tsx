@@ -9,6 +9,24 @@ interface AddEmployeeModalProps {
   employeeToEdit?: Employee | null;
 }
 
+const OTHER_VALUE = '__OTHER__';
+
+const DEPARTMENT_ROLES: Record<string, string[]> = {
+  'Management & Administration': ['CEO', 'Managing Director', 'COO', 'General Manager', 'Executive Assistant'],
+  'Human Resources (HR)': ['HR Manager', 'HR Executive', 'HR Recruiter', 'Payroll Executive', 'HR Assistant'],
+  'Finance & Accounts': ['Finance Manager', 'Accountant', 'Accounts Executive', 'Finance Analyst', 'Billing Executive'],
+  'Software Development': ['Software Engineer', 'Full Stack Developer', 'Frontend Developer', 'Backend Developer', 'Mobile App Developer'],
+  'AI & Data Science': ['AI Engineer', 'ML Engineer', 'Data Scientist', 'Generative AI Engineer', 'Data Analyst'],
+  'QA & Testing': ['QA Manager', 'QA Engineer', 'Manual Tester', 'Automation Tester', 'Performance Tester'],
+  'UI/UX & Design': ['UI Designer', 'UX Designer', 'Graphic Designer', 'Product Designer'],
+};
+
+const DEPARTMENT_OPTIONS = Object.keys(DEPARTMENT_ROLES);
+
+const ALL_ROLES = Array.from(new Set(Object.values(DEPARTMENT_ROLES).flat())).sort();
+
+const roleOptionsFor = (dept: string) => (DEPARTMENT_OPTIONS.includes(dept) ? DEPARTMENT_ROLES[dept] : ALL_ROLES);
+
 // const API_BASE = process.env.REACT_APP_API_URL ?? 'http://localhost:4000/api';
 
 // function getToken(): string | null {
@@ -22,7 +40,7 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
     email: '',
     phone: '',
     role: '',
-    department: 'Engineering',
+    department: '',
     joinDate: new Date().toISOString().split('T')[0],
     pan: '',
     monthlyGrossSalary: '',
@@ -40,6 +58,8 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
   const [saving, setSaving] = useState(false);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [deptChoice, setDeptChoice] = useState('');
+  const [roleChoice, setRoleChoice] = useState('');
 
   useEffect(() => {
     if (!isOpen) return;
@@ -50,7 +70,7 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
         email: employeeToEdit.email ?? '',
         phone: employeeToEdit.phone ?? '',
         role: employeeToEdit.role ?? '',
-        department: employeeToEdit.department ?? 'Engineering',
+        department: employeeToEdit.department ?? '',
         joinDate: employeeToEdit.joinDate ?? new Date().toISOString().split('T')[0],
         pan: employeeToEdit.pan ?? '',
         monthlyGrossSalary: employeeToEdit.basicSalary ? String(Math.round((employeeToEdit.basicSalary / 0.4) || 0)) : '',
@@ -64,6 +84,10 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
         esiEnabled: employeeToEdit.esiEnabled ?? true,
         pfEnabled: employeeToEdit.pfEnabled ?? true
       });
+      const dept = employeeToEdit.department ?? '';
+      const role = employeeToEdit.role ?? '';
+      setDeptChoice(dept === '' ? '' : (DEPARTMENT_OPTIONS.includes(dept) ? dept : OTHER_VALUE));
+      setRoleChoice(role === '' ? '' : (roleOptionsFor(dept).includes(role) ? role : OTHER_VALUE));
       setTouched({});
       setErrors({});
     } else {
@@ -73,7 +97,7 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
         email: '',
         phone: '',
         role: '',
-        department: 'Engineering',
+        department: '',
         joinDate: new Date().toISOString().split('T')[0],
         pan: '',
         monthlyGrossSalary: '',
@@ -87,6 +111,8 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
         esiEnabled: true,
         pfEnabled: true
       });
+      setDeptChoice('');
+      setRoleChoice('');
       setTouched({});
       setErrors({});
     }
@@ -117,6 +143,9 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
       case 'role':
         if (!value.trim()) return 'Role is required';
         if (value.trim().length < 2) return 'Role must be at least 2 characters';
+        return '';
+      case 'department':
+        if (!value.trim()) return 'Department is required';
         return '';
       case 'pan':
         if (!value.trim()) return 'PAN is required';
@@ -159,7 +188,7 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
 
   const validateAll = (data = formData) => {
     const newErrors: Record<string, string> = {};
-    const requiredFields = ['id', 'name', 'email', 'phone', 'role', 'pan', 'monthlyGrossSalary', 'basicSalary'];
+    const requiredFields = ['id', 'name', 'email', 'phone', 'role', 'department', 'pan', 'monthlyGrossSalary', 'basicSalary'];
 
     Object.keys(data).forEach((k) => {
       const val = (data as any)[k];
@@ -289,6 +318,27 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
     });
   };
 
+  const handleDepartmentSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const val = e.target.value;
+    setDeptChoice(val);
+    setRoleChoice(''); // role options depend on department, so reset the previous pick
+    setFormData(prev => ({
+      ...prev,
+      department: val === OTHER_VALUE ? '' : val,
+      role: ''
+    }));
+    setTouched(prev => ({ ...prev, department: true }));
+  };
+
+  const handleRoleSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const val = e.target.value;
+    setRoleChoice(val);
+    setFormData(prev => ({ ...prev, role: val === OTHER_VALUE ? '' : val }));
+    setTouched(prev => ({ ...prev, role: true }));
+  };
+
+  const roleOptions = roleOptionsFor(formData.department);
+
   // const autoCalculateSalary = () => {
   //   const basic = Number(formData.basicSalary);
   //   if (!isNaN(basic) && basic > 0) {
@@ -329,7 +379,7 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
           <div>
             <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">Personal Information</h3>
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
                     Employee ID *
@@ -374,26 +424,45 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
                 </div>
 
                 <div className="col-span-1">
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Role *</label>
-                  <input required name="role" value={formData.role} placeholder="Role" onChange={handleChange} onBlur={handleBlur} aria-invalid={!!errors.role} className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-emerald-500 outline-none text-sm" />
-                  {showError('role') && <p className="text-xs text-red-600 mt-1">{showError('role')}</p>}
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Dept *</label>
+                  <select required name="department" value={deptChoice} onChange={handleDepartmentSelect} onBlur={handleBlur} aria-invalid={!!errors.department} className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-emerald-500 outline-none bg-white text-sm">
+                    <option value="" disabled>Select department</option>
+                    {DEPARTMENT_OPTIONS.map(d => <option key={d} value={d}>{d}</option>)}
+                    <option value={OTHER_VALUE}>Other</option>
+                  </select>
+                  {deptChoice === OTHER_VALUE && (
+                    <input
+                      name="department"
+                      value={formData.department}
+                      onChange={handleChange}
+                      onBlur={handleBlur}
+                      placeholder="Enter department"
+                      aria-invalid={!!errors.department}
+                      className="w-full px-3 py-2 mt-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-emerald-500 outline-none text-sm"
+                    />
+                  )}
+                  {showError('department') && <p className="text-xs text-red-600 mt-1">{showError('department')}</p>}
 
                 </div>
                 <div className="col-span-1">
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Dept *</label>
-                  <select required name="department" value={formData.department} onChange={handleChange} onBlur={handleBlur} aria-invalid={!!errors.department} className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-emerald-500 outline-none bg-white text-sm">
-                    <option value="Engineering">Engineering</option>
-                    <option value="Human Resources">Human Resources</option>
-                    <option value="Sales">Sales</option>
-                    <option value="Design">Design</option>
-                    <option value="Marketing">Marketing</option>
-                    <option value="AI Engineering">AI Engineering</option>
-                    <option value="Finance">Finance</option>
-                    <option value="Administration">Administration</option>
-                    <option value="Customer Support">Customer Support</option>
-                    <option value="Driver">Driver</option>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Role *</label>
+                  <select required name="role" value={roleChoice} onChange={handleRoleSelect} onBlur={handleBlur} aria-invalid={!!errors.role} className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-emerald-500 outline-none bg-white text-sm">
+                    <option value="" disabled>Select role</option>
+                    {roleOptions.map(r => <option key={r} value={r}>{r}</option>)}
+                    <option value={OTHER_VALUE}>Other</option>
                   </select>
-                  {showError('department') && <p className="text-xs text-red-600 mt-1">{showError('department')}</p>}
+                  {roleChoice === OTHER_VALUE && (
+                    <input
+                      name="role"
+                      value={formData.role}
+                      onChange={handleChange}
+                      onBlur={handleBlur}
+                      placeholder="Enter role"
+                      aria-invalid={!!errors.role}
+                      className="w-full px-3 py-2 mt-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-emerald-500 outline-none text-sm"
+                    />
+                  )}
+                  {showError('role') && <p className="text-xs text-red-600 mt-1">{showError('role')}</p>}
 
                 </div>
                 <div className="col-span-1">
@@ -444,7 +513,7 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
               </div>
 
               
-              <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-200">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-200">
                 <div className="bg-white p-3 rounded border border-slate-200">
                   <span className="block text-xs text-slate-500 mb-1">Basic Salary (40%)</span>
                   <div className="flex items-center gap-2">

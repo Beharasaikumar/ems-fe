@@ -178,7 +178,7 @@ export const DailyLogs: React.FC = () => {
     return (
         <div className="space-y-5">
 
-            <div className="bg-white border rounded-xl p-5 flex justify-between">
+            <div className="bg-white border rounded-xl p-5 flex flex-col sm:flex-row sm:justify-between gap-3">
                 <div>
                     <h1 className="text-xl font-semibold">
                         Daily Logs & Reminders
@@ -190,7 +190,7 @@ export const DailyLogs: React.FC = () => {
 
                 <button
                     onClick={() => setIsAdding(true)}
-                    className="bg-emerald-600 text-white rounded-lg px-4 py-2 shadow-sm flex items-center gap-2"
+                    className="bg-emerald-600 text-white rounded-lg px-4 py-2 shadow-sm flex items-center justify-center gap-2 w-full sm:w-auto"
                 >
                     <Plus size={16} /> New Log Entry
                 </button>

@@ -359,7 +359,7 @@ const App: React.FC = () => {
 
 
   return (
-    <Layout currentView={currentView} setView={setCurrentView} onLogout={() => { logout(); }} user={currentUser ?? undefined}>
+    <Layout currentView={currentView} setView={setCurrentView} onLogout={() => { logout(); }} user={currentUser ?? undefined} pendingLeaveCount={leaveRequests.filter(l => l.status === 'Pending').length}>
       {loading && (<div className="p-4">Loading...</div>)}
 
       {currentUser?.role === 'ADMIN' && (

@@ -182,7 +182,8 @@ export const BillManager: React.FC = () => {
       </div>
 
        <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
-        <table className="w-full text-left">
+        <div className="overflow-x-auto">
+        <table className="w-full text-left min-w-[720px]">
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
               <th className="p-4 font-bold text-slate-600 text-xs uppercase tracking-wider">Bill Info</th>
@@ -270,6 +271,7 @@ export const BillManager: React.FC = () => {
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
        {isAdding && (
@@ -290,7 +292,7 @@ export const BillManager: React.FC = () => {
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-sm"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">Amount (INR) *</label>
                   <input 

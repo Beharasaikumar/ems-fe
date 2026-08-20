@@ -120,7 +120,8 @@ export const LeaveManager: React.FC<LeaveManagerProps> = ({ employees, leaveRequ
         <div className="pt-6 border-t border-slate-200">
           <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3 ml-1">Decision History</h3>
           <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
-            <table className="w-full text-left">
+            <div className="overflow-x-auto">
+            <table className="w-full text-left min-w-[600px]">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
                   <th className="p-4 font-semibold text-slate-600 text-sm">Employee</th>
@@ -154,6 +155,7 @@ export const LeaveManager: React.FC<LeaveManagerProps> = ({ employees, leaveRequ
                 })}
               </tbody>
             </table>
+            </div>
           </div>
         </div>
       )}
