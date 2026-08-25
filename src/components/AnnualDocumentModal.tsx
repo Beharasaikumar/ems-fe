@@ -1,9 +1,10 @@
-import React, { useMemo, useState } from 'react';
-import { Award, Table, X, Download, Printer, Share2, ChevronDown } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Award, Table, X, Download, Printer, Share2, ChevronDown, TrendingUp, ShieldCheck, Star } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
-import { Employee, Payslip } from '../types';
+import { Employee, Payslip, SalaryRevision } from '../types';
 import { exportToCSV } from '../utils/utils';
+import { apiGet } from '../api/api';
 import {
   FlatAttendanceRecord,
   FYOption,
@@ -15,6 +16,7 @@ import {
   calculateHistoricalPayroll,
   mergeEarningsForDisplay,
   findSavedPayslip,
+  findApplicableRevision,
   isMonthBeforeJoin,
   isMonthInFuture,
   countPaidDays,
@@ -30,6 +32,15 @@ interface AnnualDocumentModalProps {
   initialView?: 'certificate' | 'statement';
   onClose: () => void;
 }
+
+const CUSTOM_PURPOSE_VALUE = '__CUSTOM__';
+const CERTIFICATE_PURPOSES = [
+  'Official Verification & Financial Proof',
+  'Income Tax Assessment & ITR Filing',
+  'Bank Loan Application',
+  'Visa & Immigration Application',
+  'Annual Compensation Review',
+];
 
 type MonthRow = {
   label: string;
@@ -48,6 +59,7 @@ type MonthRow = {
   totalDeductions: number;
   netSalary: number;
   active: boolean;
+  revisionId?: string;
 };
 
 export const AnnualDocumentModal: React.FC<AnnualDocumentModalProps> = ({
@@ -62,19 +74,42 @@ export const AnnualDocumentModal: React.FC<AnnualDocumentModalProps> = ({
   const [view, setView] = useState<'certificate' | 'statement'>(initialView);
   const [fyStartYear, setFyStartYear] = useState(initialFYStartYear);
   const [busy, setBusy] = useState(false);
+  const [revisions, setRevisions] = useState<SalaryRevision[]>([]);
+  const [certificatePurpose, setCertificatePurpose] = useState(CERTIFICATE_PURPOSES[0]);
+  const [customPurpose, setCustomPurpose] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    apiGet(`/employees/${encodeURIComponent(employee.id)}/salary-revisions`)
+      .then((data) => {
+        if (!cancelled && Array.isArray(data)) setRevisions(data);
+      })
+      .catch((err) => console.warn('Failed to load salary revisions', err));
+    return () => { cancelled = true; };
+  }, [employee.id]);
+
+  const isFYBeforeJoin = (opt: FYOption): boolean => {
+    if (!employee.joinDate) return false;
+    const join = new Date(employee.joinDate);
+    if (isNaN(join.getTime())) return false;
+    const fyEnd = new Date(opt.startYear + 1, 2, 31); // March 31 of the FY's end year
+    return join > fyEnd;
+  };
 
   const fyLabel = `FY ${fyStartYear} - ${fyStartYear + 1}`;
   const fyRangeLabel = `1st April ${fyStartYear} to 31st March ${fyStartYear + 1}`;
   const refNo = `LOMAA/ASC/${fyStartYear}${fyStartYear + 1}/${employee.id}`;
   const issueDate = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
 
-  const fixed = useMemo(() => calculateFixedMonthly(employee), [employee]);
+  const fixed = useMemo(() => calculateFixedMonthly(employee, revisions), [employee, revisions]);
 
   const monthRows: MonthRow[] = useMemo(() => {
     const months = getFinancialYearMonths(fyStartYear);
     return months.map(m => {
       const prefix = monthPrefix(m);
       const totalDays = new Date(m.year, m.monthIndex + 1, 0).getDate();
+      const monthEndStr = `${m.year}-${String(m.monthIndex + 1).padStart(2, '0')}-${String(totalDays).padStart(2, '0')}`;
+      const revisionForMonth = revisions.length > 0 ? (findApplicableRevision(revisions, monthEndStr) ?? revisions[0]) : undefined;
 
       if (isMonthBeforeJoin(employee, m)) {
         return {
@@ -103,20 +138,36 @@ export const AnnualDocumentModal: React.FC<AnnualDocumentModalProps> = ({
           basic: merged.basic, hra: merged.hra, special: merged.special, gross: merged.gross,
           pf: d.pf ?? 0, esi: d.esi ?? 0, pt: d.pt ?? 0, tax: d.tax ?? 0,
           advance: (d.emergencyAdvance ?? 0), totalDeductions: d.totalDeductions ?? 0, netSalary: saved.netSalary ?? 0,
-          active: true,
+          active: true, revisionId: revisionForMonth?.id,
         };
       }
 
-      const projected = calculateHistoricalPayroll(employee, m, attendanceForMonth);
+      const projected = calculateHistoricalPayroll(employee, m, attendanceForMonth, 0, revisions);
       return {
         label: monthLabel(m), prefix, paidDays: projected.paidDays, totalDays: projected.totalDays,
         basic: projected.earnings.basic, hra: projected.earnings.hra, special: projected.earnings.special,
         gross: projected.earnings.gross, pf: projected.deductions.pf, esi: projected.deductions.esi,
         pt: projected.deductions.pt, tax: projected.deductions.tax, advance: projected.deductions.advance,
         totalDeductions: projected.deductions.totalDeductions, netSalary: projected.netSalary, active: true,
+        revisionId: revisionForMonth?.id,
       };
     });
-  }, [employee, fyStartYear, attendanceRecords, payslipHistory]);
+  }, [employee, fyStartYear, attendanceRecords, payslipHistory, revisions]);
+
+  /** The most recent revision whose effectiveDate falls inside the selected FY and isn't the employee's first-ever revision. */
+  const fyIncrement = useMemo(() => {
+    if (revisions.length < 2) return null;
+    const fyStart = `${fyStartYear}-04-01`;
+    const fyEnd = `${fyStartYear + 1}-03-31`;
+    let match: { current: SalaryRevision; previous: SalaryRevision } | null = null;
+    for (let i = 1; i < revisions.length; i++) {
+      const r = revisions[i];
+      if (r.effectiveDate >= fyStart && r.effectiveDate <= fyEnd) {
+        match = { current: r, previous: revisions[i - 1] };
+      }
+    }
+    return match;
+  }, [revisions, fyStartYear]);
 
   const activeRows = monthRows.filter(r => r.active);
   const totalPaidDays = activeRows.reduce((s, r) => s + r.paidDays, 0);
@@ -234,8 +285,8 @@ export const AnnualDocumentModal: React.FC<AnnualDocumentModalProps> = ({
                 className="appearance-none bg-slate-800 border border-slate-700 text-white text-xs font-semibold rounded-lg pl-3 pr-8 py-2 outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
               >
                 {fyOptions.map(opt => (
-                  <option key={opt.startYear} value={opt.startYear}>
-                    {opt.label}{opt.isCurrent ? ' (Current)' : ''}
+                  <option key={opt.startYear} value={opt.startYear} disabled={isFYBeforeJoin(opt)}>
+                    {opt.label}{opt.isCurrent ? ' (Current)' : ''}{isFYBeforeJoin(opt) ? ' (Before Joining)' : ''}
                   </option>
                 ))}
               </select>
@@ -264,6 +315,35 @@ export const AnnualDocumentModal: React.FC<AnnualDocumentModalProps> = ({
         </div>
 
         <div className="p-4 md:p-8 overflow-y-auto bg-slate-50 flex-1">
+          {view === 'certificate' && (
+            <div className="max-w-3xl mx-auto mb-4 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-2.5 text-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <label className="font-bold text-emerald-800 shrink-0">Certificate Purpose:</label>
+                  <select
+                    value={certificatePurpose}
+                    onChange={(e) => setCertificatePurpose(e.target.value)}
+                    className="bg-white border border-slate-300 rounded-md px-3 py-1.5 text-slate-700 font-medium outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
+                  >
+                    {CERTIFICATE_PURPOSES.map(p => <option key={p} value={p}>{p}</option>)}
+                    <option value={CUSTOM_PURPOSE_VALUE}>Custom Purpose...</option>
+                  </select>
+                </div>
+                <span className="flex items-center gap-1.5 text-emerald-700 font-semibold shrink-0">
+                  <ShieldCheck size={14} /> Digital Reference: <span className="font-bold">{refNo}</span>
+                </span>
+              </div>
+              {certificatePurpose === CUSTOM_PURPOSE_VALUE && (
+                <input
+                  type="text"
+                  value={customPurpose}
+                  onChange={(e) => setCustomPurpose(e.target.value)}
+                  placeholder="Enter custom purpose"
+                  className="w-full mt-2 bg-white border border-slate-300 rounded-md px-3 py-1.5 text-slate-700 outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              )}
+            </div>
+          )}
           {view === 'certificate' ? (
             <div id="annual-doc-printable" className="relative bg-white border border-slate-200 shadow-sm rounded-xl p-8 max-w-3xl mx-auto text-slate-800">
               <div className="absolute inset-0 z-0 flex items-center justify-center overflow-hidden pointer-events-none select-none">
@@ -302,12 +382,16 @@ export const AnnualDocumentModal: React.FC<AnnualDocumentModalProps> = ({
                   deductions for the period of <strong>FY {fyLabel}</strong> are detailed below:
                 </p>
 
+                <CertificationParagraph fyIncrement={fyIncrement} fyLabel={fyLabel} />
+
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 border border-slate-200 rounded-lg p-4 mb-6 text-xs">
                   <div><p className="text-slate-400 uppercase text-[10px] font-bold mb-1">PAN Number</p><p className="font-semibold uppercase">{employee.pan || 'N/A'}</p></div>
                   <div><p className="text-slate-400 uppercase text-[10px] font-bold mb-1">Bank Account No.</p><p className="font-semibold">•••• {(employee.bankAccountNumber || '').slice(-4) || 'N/A'}</p></div>
                   <div><p className="text-slate-400 uppercase text-[10px] font-bold mb-1">PF / UAN No.</p><p className="font-semibold">{employee.pfAccountNumber || 'N/A'}</p></div>
                   <div><p className="text-slate-400 uppercase text-[10px] font-bold mb-1">Total Paid Days</p><p className="font-semibold text-emerald-700">{totalPaidDays} / {totalDaysAll} Days</p></div>
                 </div>
+
+                <CertificateIncrementCard fyIncrement={fyIncrement} />
 
                 <div className="border border-slate-200 rounded-lg overflow-hidden mb-4">
                   <div className="grid grid-cols-3 bg-slate-900 text-white text-[11px] font-bold uppercase">
@@ -339,7 +423,7 @@ export const AnnualDocumentModal: React.FC<AnnualDocumentModalProps> = ({
                     <p className="font-semibold text-slate-700">{amountInWordsINR(annualNet)}</p>
                   </div>
                   <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-3 py-1 whitespace-nowrap">
-                    Issued for: Official Verification &amp; Financial Purposes
+                    Issued for: {certificatePurpose === CUSTOM_PURPOSE_VALUE ? (customPurpose || 'Custom Purpose') : certificatePurpose}
                   </span>
                 </div>
 
@@ -406,6 +490,8 @@ export const AnnualDocumentModal: React.FC<AnnualDocumentModalProps> = ({
                   <div><p className="text-slate-400 uppercase text-[10px] font-bold mb-1">Monthly Base Gross</p><p className="font-semibold">{formatINR(fixed.earnings.gross)}</p></div>
                 </div>
 
+                <IncrementBanner fyIncrement={fyIncrement} />
+
                 <div className="border border-slate-200 rounded-lg overflow-x-auto mb-6">
                   <table className="w-full text-[11px] min-w-[860px]">
                     <thead>
@@ -426,9 +512,25 @@ export const AnnualDocumentModal: React.FC<AnnualDocumentModalProps> = ({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {monthRows.map(r => (
+                      {monthRows.map((r, idx) => {
+                        // Only tag the month the increment actually took effect in, not every month that follows it.
+                        let isRevisedRate = false;
+                        if (r.active && r.revisionId && revisions.length > 1 && r.revisionId !== revisions[0].id) {
+                          isRevisedRate = true;
+                          for (let j = idx - 1; j >= 0; j--) {
+                            if (monthRows[j].active) { isRevisedRate = monthRows[j].revisionId !== r.revisionId; break; }
+                          }
+                        }
+                        return (
                         <tr key={r.prefix} className={r.active ? '' : 'text-slate-300'}>
-                          <td className="p-2 px-3 font-semibold">{r.label}</td>
+                          <td className="p-2 px-3 font-semibold">
+                            {r.label}
+                            {isRevisedRate && (
+                              <span className="block text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-1.5 py-0.5 mt-0.5 w-fit">
+                                Revised Rate
+                              </span>
+                            )}
+                          </td>
                           <td className="p-2 text-right">{r.active ? `${r.paidDays}/${r.totalDays}` : '—'}</td>
                           <td className="p-2 text-right">{r.active ? r.basic.toLocaleString('en-IN') : '—'}</td>
                           <td className="p-2 text-right">{r.active ? r.hra.toLocaleString('en-IN') : '—'}</td>
@@ -442,7 +544,8 @@ export const AnnualDocumentModal: React.FC<AnnualDocumentModalProps> = ({
                           <td className="p-2 text-right text-red-600 font-medium">{r.active ? r.totalDeductions.toLocaleString('en-IN') : '—'}</td>
                           <td className="p-2 px-3 text-right font-bold bg-emerald-50/60">{r.active ? r.netSalary.toLocaleString('en-IN') : '—'}</td>
                         </tr>
-                      ))}
+                        );
+                      })}
                       <tr className="bg-slate-900 text-white font-bold">
                         <td className="p-2 px-3">Annual Total</td>
                         <td className="p-2 text-right">{totalPaidDays}/{totalDaysAll}</td>
@@ -530,6 +633,92 @@ const Row: React.FC<{ label: string; monthly: number | null; annual: number; bol
     </div>
   </div>
 );
+
+const IncrementBanner: React.FC<{ fyIncrement: { current: SalaryRevision; previous: SalaryRevision } | null }> = ({ fyIncrement }) => {
+  if (!fyIncrement) return null;
+  return (
+    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-lg p-3 mb-4 text-xs">
+      <div className="flex items-center gap-2">
+        <TrendingUp size={14} className="text-emerald-700 shrink-0" />
+        <div>
+          <p className="font-bold text-emerald-800">Official Salary Increment Recorded <span className="font-normal text-emerald-700">— Effective {fyIncrement.current.effectiveDate}</span></p>
+          <p className="text-emerald-700 mt-0.5">
+            Compensation incremented from {formatINR(fyIncrement.previous.monthlyGrossSalary)}/mo to {formatINR(fyIncrement.current.monthlyGrossSalary)}/mo
+            {fyIncrement.previous.monthlyGrossSalary > 0 && (
+              <> (+{Math.round(((fyIncrement.current.monthlyGrossSalary - fyIncrement.previous.monthlyGrossSalary) / fyIncrement.previous.monthlyGrossSalary) * 100)}% Hike, +{formatINR(fyIncrement.current.monthlyGrossSalary - fyIncrement.previous.monthlyGrossSalary)}/mo)</>
+            )}
+          </p>
+        </div>
+      </div>
+      {fyIncrement.current.reason && (
+        <div className="text-[10px] text-gray-300 bg-white border border-emerald-200 rounded-md px-3 py-1 whitespace-nowrap">
+        Appraisal Reason <br/>
+        <span className="text-[12px] font-bold text-emerald-700">
+          {fyIncrement.current.reason}
+        </span>
+        </div>
+      )}
+    </div>
+  );
+};
+
+type FyIncrement = { current: SalaryRevision; previous: SalaryRevision } | null;
+
+const CertificationParagraph: React.FC<{ fyIncrement: FyIncrement; fyLabel: string }> = ({ fyIncrement, fyLabel }) => {
+  if (!fyIncrement) return null;
+  const diff = fyIncrement.current.monthlyGrossSalary - fyIncrement.previous.monthlyGrossSalary;
+  const pct = fyIncrement.previous.monthlyGrossSalary > 0 ? Math.round((diff / fyIncrement.previous.monthlyGrossSalary) * 1000) / 10 : 0;
+  return (
+    <div className="bg-emerald-50 border-l-4 border-emerald-500 rounded-r-lg p-4 mb-6 text-sm text-slate-700 leading-relaxed">
+      <span className="font-bold text-emerald-800">Salary Increment Certification:</span> This is further to officially certify that during
+      the assessment period <strong>FY {fyLabel}</strong>, the employee was awarded a formal salary increment
+      from <strong>{formatINR(fyIncrement.previous.monthlyGrossSalary)}/-</strong> to <strong>{formatINR(fyIncrement.current.monthlyGrossSalary)}/-</strong> per
+      month effective from <strong>{fyIncrement.current.effectiveDate}</strong>{fyIncrement.current.reason ? <> ({fyIncrement.current.reason})</> : null},
+      representing a salary hike of <strong className="text-emerald-700">+{formatINR(diff)}/- per month (+{pct}% increase)</strong>.
+    </div>
+  );
+};
+
+const CertificateIncrementCard: React.FC<{ fyIncrement: FyIncrement }> = ({ fyIncrement }) => {
+  if (!fyIncrement) return null;
+  const diff = fyIncrement.current.monthlyGrossSalary - fyIncrement.previous.monthlyGrossSalary;
+  const pct = fyIncrement.previous.monthlyGrossSalary > 0 ? Math.round((diff / fyIncrement.previous.monthlyGrossSalary) * 1000) / 10 : 0;
+  return (
+    <div className="border border-emerald-200 rounded-lg p-4 mb-4 bg-white">
+      <div className="flex flex-wrap justify-between items-center gap-2 mb-3">
+        <div className="flex items-center gap-2">
+          <span className="w-6 h-6 rounded bg-emerald-600 flex items-center justify-center shrink-0">
+            <Star size={13} className="text-white" fill="white" />
+          </span>
+          <span className="font-bold text-xs sm:text-sm text-slate-800 uppercase tracking-wide">Official Salary Increment &amp; Revision Endorsement</span>
+        </div>
+        <span className="text-[10px] font-bold text-white bg-emerald-600 rounded-full px-3 py-1 whitespace-nowrap">+{pct}% INCREMENT</span>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+        <div className="border border-slate-200 rounded-lg p-3">
+          <p className="text-slate-400 uppercase text-[10px] font-bold mb-1">Pre-Increment Salary</p>
+          <p className="font-extrabold text-slate-800 text-base">{formatINR(fyIncrement.previous.monthlyGrossSalary)}</p>
+          <p className="text-slate-400 mt-0.5">Effective from {fyIncrement.previous.effectiveDate}</p>
+        </div>
+        <div className="border-2 border-emerald-400 bg-emerald-50 rounded-lg p-3">
+          <p className="text-emerald-600 uppercase text-[10px] font-bold mb-1">Revised / Incremented</p>
+          <p className="font-extrabold text-emerald-800 text-base">{formatINR(fyIncrement.current.monthlyGrossSalary)}</p>
+          <p className="text-emerald-600 mt-0.5">Revised from {fyIncrement.current.effectiveDate}</p>
+        </div>
+        <div className="border border-slate-200 rounded-lg p-3">
+          <p className="text-slate-400 uppercase text-[10px] font-bold mb-1">Monthly Increment Hike</p>
+          <p className="font-extrabold text-slate-800 text-base">+{formatINR(diff)}</p>
+          <p className="text-slate-400 mt-0.5">+{pct}% Hike</p>
+        </div>
+        <div className="border border-slate-200 rounded-lg p-3">
+          <p className="text-slate-400 uppercase text-[10px] font-bold mb-1">Increment Effective Date</p>
+          <p className="font-extrabold text-slate-800 text-base">{fyIncrement.current.effectiveDate}</p>
+          <p className="text-slate-400 mt-0.5 truncate" title={fyIncrement.current.reason}>{fyIncrement.current.reason || '—'}</p>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const SummaryTile: React.FC<{ label: string; value: string; sub: string; tone?: 'amber' | 'dark' }> = ({ label, value, sub, tone }) => {
   const bg = tone === 'amber' ? 'bg-amber-50 border-amber-100' : tone === 'dark' ? 'bg-slate-900 border-slate-900' : 'bg-emerald-50 border-emerald-100';

@@ -1,4 +1,4 @@
-import { Employee, Payslip } from '../types';
+import { Employee, Payslip, SalaryRevision } from '../types';
 import { PF_RATE, ESI_EMPLOYEE_RATE, ESI_WAGE_LIMIT, PROFESSIONAL_TAX } from '../constants';
 
 const PT_THRESHOLD = 15000;
@@ -109,11 +109,24 @@ function taxFor(gross: number): number {
   return gross > TDS_THRESHOLD ? Math.round((gross - TDS_THRESHOLD) * TDS_RATE) : 0;
 }
 
+/** Returns the revision with the latest effectiveDate <= dateStr (revisions must be sorted ascending), or undefined. */
+export function findApplicableRevision(revisions: SalaryRevision[], dateStr: string): SalaryRevision | undefined {
+  let applicable: SalaryRevision | undefined;
+  for (const r of revisions) {
+    if (r.effectiveDate <= dateStr) applicable = r;
+    else break;
+  }
+  return applicable;
+}
+
 /** Fixed/unprorated monthly structure — used for CTC-style annual figures & the certificate. */
-export function calculateFixedMonthly(emp: Employee): ComputedMonth {
-  const basic = emp.basicSalary ?? 0;
-  const hra = emp.hra ?? 0;
-  const special = (emp.specialAllowance ?? 0) + (emp.da ?? 0);
+export function calculateFixedMonthly(emp: Employee, revisions: SalaryRevision[] = []): ComputedMonth {
+  const todayStr = new Date().toISOString().split('T')[0];
+  const rev = revisions.length > 0 ? (findApplicableRevision(revisions, todayStr) ?? revisions[0]) : undefined;
+
+  const basic = rev ? rev.basicSalary : (emp.basicSalary ?? 0);
+  const hra = rev ? rev.hra : (emp.hra ?? 0);
+  const special = rev ? (rev.specialAllowance + rev.da) : ((emp.specialAllowance ?? 0) + (emp.da ?? 0));
   const gross = basic + hra + special;
 
   const pf = pfFor(emp, basic);
@@ -136,17 +149,21 @@ export function calculateHistoricalPayroll(
   emp: Employee,
   m: FYMonth,
   attendanceForMonth: FlatAttendanceRecord[],
-  advanceAmount: number = 0
+  advanceAmount: number = 0,
+  revisions: SalaryRevision[] = []
 ): ComputedMonth {
   const totalDays = new Date(m.year, m.monthIndex + 1, 0).getDate();
   const paidDays = countPaidDays(attendanceForMonth, totalDays);
 
+  const monthEndStr = `${m.year}-${String(m.monthIndex + 1).padStart(2, '0')}-${String(totalDays).padStart(2, '0')}`;
+  const rev = revisions.length > 0 ? (findApplicableRevision(revisions, monthEndStr) ?? revisions[0]) : undefined;
+
   const calc = (amount: number) => Math.round((amount / totalDays) * paidDays);
 
-  const earnedBasic = calc(emp.basicSalary ?? 0);
-  const earnedHra = calc(emp.hra ?? 0);
-  const earnedDa = calc(emp.da ?? 0);
-  const earnedSpecial = calc(emp.specialAllowance ?? 0) + earnedDa;
+  const earnedBasic = calc(rev ? rev.basicSalary : (emp.basicSalary ?? 0));
+  const earnedHra = calc(rev ? rev.hra : (emp.hra ?? 0));
+  const earnedDa = calc(rev ? rev.da : (emp.da ?? 0));
+  const earnedSpecial = calc(rev ? rev.specialAllowance : (emp.specialAllowance ?? 0)) + earnedDa;
   const earnedGross = earnedBasic + earnedHra + earnedSpecial;
 
   const pf = pfFor(emp, earnedBasic);

@@ -53,6 +53,7 @@ const App: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  const [formModalInitialTab, setFormModalInitialTab] = useState<'general' | 'revisions'>('general');
   const [viewingEmployee, setViewingEmployee] = useState<Employee | null>(null);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
 
@@ -372,10 +373,11 @@ const App: React.FC = () => {
               getFilteredEmployees={getFilteredEmployees}
               searchTerm={searchTerm}
               setSearchTerm={setSearchTerm}
-              onAdd={() => { setEditingEmployee(null); setIsFormModalOpen(true); }}
-              onEdit={(emp) => { setEditingEmployee(emp); setIsFormModalOpen(true); }}
+              onAdd={() => { setEditingEmployee(null); setFormModalInitialTab('general'); setIsFormModalOpen(true); }}
+              onEdit={(emp) => { setEditingEmployee(emp); setFormModalInitialTab('general'); setIsFormModalOpen(true); }}
               onDelete={handleDeleteEmployee}
               onView={(emp) => setViewingEmployee(emp)}
+              onQuickIncrement={(emp) => { setEditingEmployee(emp); setFormModalInitialTab('revisions'); setIsFormModalOpen(true); }}
             />
           )}
 
@@ -412,6 +414,8 @@ const App: React.FC = () => {
             onClose={() => setIsFormModalOpen(false)}
             onSubmit={handleFormSubmit}
             employeeToEdit={editingEmployee}
+            initialTab={formModalInitialTab}
+            onEmployeeUpdated={(updated) => setEmployees(prev => prev.map(e => e.id === updated.id ? { ...e, ...updated } : e))}
           />
 
           <EmployeeDetailsModal

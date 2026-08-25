@@ -1,12 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Employee } from '../types';
-import { X, Save, Calculator, Wallet, Building2, CreditCard } from 'lucide-react';
+import { Employee, SalaryRevision } from '../types';
+import { X, Save, Calculator, Wallet, Building2, CreditCard, TrendingUp, Plus, Trash2, Award } from 'lucide-react';
+import { apiGet, apiPost, apiDelete } from '../api/api';
+import { mergeEarningsForDisplay } from '../utils/annualPayroll';
 
 interface AddEmployeeModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (employeePayload: Omit<Employee, 'id'> & { id: string }) => void;
   employeeToEdit?: Employee | null;
+  onEmployeeUpdated?: (updated: Employee) => void;
+  initialTab?: 'general' | 'revisions';
 }
 
 const OTHER_VALUE = '__OTHER__';
@@ -33,7 +37,18 @@ const roleOptionsFor = (dept: string) => (DEPARTMENT_OPTIONS.includes(dept) ? DE
 //   return localStorage.getItem('lomaa_token');
 // }
 
-export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onClose, onSubmit, employeeToEdit }) => {
+export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onClose, onSubmit, employeeToEdit, onEmployeeUpdated, initialTab }) => {
+  const [activeTab, setActiveTab] = useState<'general' | 'revisions'>('general');
+  const [revisions, setRevisions] = useState<SalaryRevision[]>([]);
+  const [loadingRevisions, setLoadingRevisions] = useState(false);
+  const [showIncrementForm, setShowIncrementForm] = useState(false);
+  const [incrementEffectiveDate, setIncrementEffectiveDate] = useState(new Date().toISOString().split('T')[0]);
+  const [incrementGross, setIncrementGross] = useState('');
+  const [incrementReason, setIncrementReason] = useState('');
+  const [applyingIncrement, setApplyingIncrement] = useState(false);
+  const [incrementError, setIncrementError] = useState('');
+  const [deletingRevisionId, setDeletingRevisionId] = useState<string | null>(null);
+
   const [formData, setFormData] = useState({
     id: '',
     name: '',
@@ -63,6 +78,12 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
 
   useEffect(() => {
     if (!isOpen) return;
+    setActiveTab(initialTab === 'revisions' && employeeToEdit ? 'revisions' : 'general');
+    setShowIncrementForm(false);
+    setIncrementGross('');
+    setIncrementReason('');
+    setIncrementError('');
+    setIncrementEffectiveDate(new Date().toISOString().split('T')[0]);
     if (employeeToEdit) {
       setFormData({
         id: employeeToEdit.id ?? '',
@@ -115,7 +136,21 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
       setRoleChoice('');
       setTouched({});
       setErrors({});
+      setRevisions([]);
     }
+  }, [isOpen, employeeToEdit]);
+
+  useEffect(() => {
+    if (!isOpen || !employeeToEdit) return;
+    let cancelled = false;
+    setLoadingRevisions(true);
+    apiGet(`/employees/${encodeURIComponent(employeeToEdit.id)}/salary-revisions`)
+      .then((data) => {
+        if (!cancelled && Array.isArray(data)) setRevisions(data);
+      })
+      .catch((err) => console.warn('Failed to load salary revisions', err))
+      .finally(() => { if (!cancelled) setLoadingRevisions(false); });
+    return () => { cancelled = true; };
   }, [isOpen, employeeToEdit]);
 
   const PAN_REGEX = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
@@ -289,6 +324,68 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
     }));
   };
 
+  const latestRevisionGross = () => (revisions.length > 0 ? revisions[revisions.length - 1].monthlyGrossSalary : Number(formData.monthlyGrossSalary) || 0);
+
+  const handleApplyIncrement = async () => {
+    if (!employeeToEdit) return;
+    setIncrementError('');
+
+    const gross = Number(incrementGross);
+    if (!incrementEffectiveDate) {
+      setIncrementError('Effective date is required');
+      return;
+    }
+    if (!incrementGross || isNaN(gross) || gross <= 0) {
+      setIncrementError('Enter a valid new monthly gross salary');
+      return;
+    }
+
+    const basic = Math.round(gross * 0.40);
+    const hra = Math.round(basic * 0.50);
+    const da = Math.round(basic * 0.20);
+    const special = Math.max(0, gross - basic - hra - da);
+
+    setApplyingIncrement(true);
+    try {
+      const res = await apiPost(`/employees/${encodeURIComponent(employeeToEdit.id)}/salary-revisions`, {
+        effectiveDate: incrementEffectiveDate,
+        monthlyGrossSalary: gross,
+        basicSalary: basic,
+        hra,
+        da,
+        specialAllowance: special,
+        reason: incrementReason || undefined,
+      });
+      if (Array.isArray(res?.revisions)) setRevisions(res.revisions);
+      if (res?.employee) onEmployeeUpdated?.(res.employee);
+      setShowIncrementForm(false);
+      setIncrementGross('');
+      setIncrementReason('');
+      setIncrementEffectiveDate(new Date().toISOString().split('T')[0]);
+    } catch (err: any) {
+      console.error(err);
+      setIncrementError(err?.message ?? 'Failed to apply increment');
+    } finally {
+      setApplyingIncrement(false);
+    }
+  };
+
+  const handleDeleteRevision = async (revisionId: string) => {
+    if (!employeeToEdit) return;
+    if (!window.confirm('Delete this salary revision? This cannot be undone.')) return;
+    setDeletingRevisionId(revisionId);
+    try {
+      const res = await apiDelete(`/employees/${encodeURIComponent(employeeToEdit.id)}/salary-revisions/${encodeURIComponent(revisionId)}`);
+      if (Array.isArray(res?.revisions)) setRevisions(res.revisions);
+      if (res?.employee) onEmployeeUpdated?.(res.employee);
+    } catch (err) {
+      console.error('Failed to delete revision', err);
+      alert('Failed to delete revision');
+    } finally {
+      setDeletingRevisionId(null);
+    }
+  };
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const name = e.target.name;
     let value = (e.target as HTMLInputElement).value;
@@ -364,17 +461,55 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
     return touched[field] && errors[field] ? errors[field] : '';
   };
 
+  const todayStr = new Date().toISOString().split('T')[0];
+  const sortedRevisions = [...revisions].sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate));
+  const currentActiveRevisionId = [...sortedRevisions].reverse().find(r => r.effectiveDate <= todayStr)?.id
+    ?? sortedRevisions[sortedRevisions.length - 1]?.id;
+
+  const previewPrevGross = latestRevisionGross();
+  const previewNewGross = Number(incrementGross) || 0;
+  const previewDiff = previewNewGross - previewPrevGross;
+  const previewPct = previewPrevGross > 0 ? Math.round((previewDiff / previewPrevGross) * 1000) / 10 : 0;
+
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
         <div className="bg-slate-900 p-4 flex justify-between items-center text-white">
-          <h2 className="text-lg font-bold">{employeeToEdit ? 'Edit Employee' : 'Add New Employee'}</h2>
+          <div>
+            <h2 className="text-lg font-bold">{employeeToEdit ? `Edit Employee • ${employeeToEdit.name}` : 'Add New Employee'}</h2>
+            {employeeToEdit && (
+              <p className="text-slate-400 text-xs mt-0.5">{employeeToEdit.id} &bull; {employeeToEdit.role || 'N/A'} &bull; {employeeToEdit.department || 'N/A'}</p>
+            )}
+          </div>
           <button onClick={onClose} className="p-1 hover:bg-slate-800 rounded-full transition-colors">
             <X size={20} />
           </button>
         </div>
 
+        {employeeToEdit && (
+          <div className="flex gap-1 bg-slate-100 border-b border-slate-200 px-4 pt-3 pb-0">
+            <button
+              type="button"
+              onClick={() => setActiveTab('general')}
+              className={`px-3 py-2 rounded-t-lg text-xs font-bold transition-colors flex items-center gap-1.5 ${activeTab === 'general' ? 'bg-white text-slate-800 border border-b-white border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
+              style={activeTab === 'general' ? { marginBottom: -1 } : undefined}
+            >
+              General &amp; Salary Details
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('revisions')}
+              className={`px-3 py-2 rounded-t-lg text-xs font-bold transition-colors flex items-center gap-1.5 ${activeTab === 'revisions' ? 'bg-white text-emerald-700 border border-b-white border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
+              style={activeTab === 'revisions' ? { marginBottom: -1 } : undefined}
+            >
+              <TrendingUp size={13} /> Salary Increment &amp; Revisions ({revisions.length})
+            </button>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="p-6 space-y-6 overflow-y-auto">
+          {activeTab === 'general' && (
+            <>
           {/* Personal Information */}
           <div>
             <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">Personal Information</h3>
@@ -616,6 +751,160 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
               </div>
             </div>
           </div>
+            </>
+          )}
+
+          {activeTab === 'revisions' && employeeToEdit && (
+            <div className="space-y-5">
+              <div className="flex justify-between items-start gap-3 flex-wrap">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                    <TrendingUp size={16} className="text-emerald-600" /> Salary Increments &amp; Revision Timeline
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-1 max-w-md">
+                    Record date-effective salary increases. The system will automatically apply the revision from the effective date across monthly payslips and annual statements.
+                  </p>
+                </div>
+                {!showIncrementForm && (
+                  <button
+                    type="button"
+                    onClick={() => setShowIncrementForm(true)}
+                    className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 text-white rounded-lg font-bold text-xs hover:bg-emerald-700 transition-colors shadow-sm shrink-0"
+                  >
+                    <Plus size={14} /> Add Increment
+                  </button>
+                )}
+              </div>
+
+              {showIncrementForm && (
+                <div className="border border-emerald-200 bg-emerald-50/60 rounded-lg p-4 space-y-3">
+                  <div className="flex justify-between items-center">
+                    <p className="text-xs font-bold text-emerald-800 uppercase tracking-wide flex items-center gap-1.5">
+                      <Award size={13} /> Record New Salary Increment
+                    </p>
+                    <button type="button" onClick={() => { setShowIncrementForm(false); setIncrementError(''); }} className="text-xs text-slate-500 hover:text-slate-700">
+                      Cancel
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Effective Date *</label>
+                      <input
+                        type="date"
+                        value={incrementEffectiveDate}
+                        onChange={(e) => setIncrementEffectiveDate(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-emerald-500 outline-none text-sm bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">New Monthly Gross Salary (₹) *</label>
+                      <input
+                        type="number"
+                        value={incrementGross}
+                        onChange={(e) => setIncrementGross(e.target.value)}
+                        placeholder="e.g. 86250"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-emerald-500 outline-none text-sm bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Appraisal / Increment Reason</label>
+                      <input
+                        type="text"
+                        value={incrementReason}
+                        onChange={(e) => setIncrementReason(e.target.value)}
+                        placeholder="e.g. Annual Performance Appraisal"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-emerald-500 outline-none text-sm bg-white"
+                      />
+                    </div>
+                  </div>
+
+                  {incrementError && <p className="text-xs text-red-600">{incrementError}</p>}
+
+                  <div className="flex flex-wrap items-center justify-between gap-3 bg-white border border-slate-200 rounded-md px-3 py-2">
+                    <p className="text-xs text-slate-600">
+                      Previous: <span className="font-semibold text-slate-800">₹{previewPrevGross.toLocaleString('en-IN')}/mo</span>
+                      {' '}&rarr;{' '}
+                      New: <span className="font-semibold text-slate-800">₹{previewNewGross.toLocaleString('en-IN')}/mo</span>
+                      {previewNewGross > 0 && (
+                        <span className={`ml-2 font-bold px-2 py-0.5 rounded-full text-[11px] ${previewDiff >= 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                          {previewDiff >= 0 ? '+' : ''}₹{previewDiff.toLocaleString('en-IN')}/mo ({previewDiff >= 0 ? '+' : ''}{previewPct}%)
+                        </span>
+                      )}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleApplyIncrement}
+                      disabled={applyingIncrement}
+                      className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-bold text-xs hover:bg-emerald-700 transition-colors disabled:opacity-60 shrink-0"
+                    >
+                      {applyingIncrement ? 'Applying...' : 'Apply Increment'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Configured Salary Structure History</h4>
+
+                {loadingRevisions && <p className="text-xs text-slate-400">Loading history...</p>}
+                {!loadingRevisions && sortedRevisions.length === 0 && (
+                  <p className="text-xs text-slate-400">No salary revisions recorded yet. Add one above to start the timeline.</p>
+                )}
+
+                <div className="space-y-2">
+                  {sortedRevisions.map((rev, idx) => {
+                    const isActive = rev.id === currentActiveRevisionId;
+                    const prev = idx > 0 ? sortedRevisions[idx - 1] : null;
+                    const diff = prev ? rev.monthlyGrossSalary - prev.monthlyGrossSalary : 0;
+                    const pct = prev && prev.monthlyGrossSalary > 0 ? Math.round((diff / prev.monthlyGrossSalary) * 1000) / 10 : 0;
+                    const merged = mergeEarningsForDisplay({ basic: rev.basicSalary, hra: rev.hra, da: rev.da, specialAllowance: rev.specialAllowance, gross: rev.monthlyGrossSalary });
+
+                    return (
+                      <div key={rev.id} className={`border rounded-lg p-3 ${isActive ? 'border-emerald-300 bg-emerald-50/50' : 'border-slate-200'}`}>
+                        <div className="flex justify-between items-start gap-3">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-bold text-sm text-slate-800">{rev.reason || 'Salary Revision'}</span>
+                              <span className="text-[10px] font-bold text-slate-500 bg-slate-100 border border-slate-200 rounded px-1.5 py-0.5">
+                                Effective {rev.effectiveDate}
+                              </span>
+                              {isActive && (
+                                <span className="text-[10px] font-bold text-white bg-emerald-600 rounded px-1.5 py-0.5">
+                                  CURRENT ACTIVE
+                                </span>
+                              )}
+                            </div>
+                            {prev && (
+                              <span className={`inline-block mt-1 text-[11px] font-bold px-2 py-0.5 rounded-full ${diff >= 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                                {diff >= 0 ? '+' : ''}₹{diff.toLocaleString('en-IN')} ({diff >= 0 ? '+' : ''}{pct}%)
+                              </span>
+                            )}
+                            <p className="text-xs text-slate-500 mt-1">
+                              Basic: ₹{merged.basic.toLocaleString('en-IN')} &bull; HRA: ₹{merged.hra.toLocaleString('en-IN')} &bull; Special: ₹{merged.special.toLocaleString('en-IN')}
+                            </p>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <p className="font-bold text-slate-800">₹{rev.monthlyGrossSalary.toLocaleString('en-IN')}</p>
+                            <p className="text-[10px] text-slate-400">/ month</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteRevision(rev.id)}
+                            disabled={deletingRevisionId === rev.id}
+                            className="text-slate-400 hover:text-red-600 transition-colors shrink-0 disabled:opacity-50"
+                            title="Delete revision"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="pt-4 flex gap-3 border-t border-slate-100">
             <button

@@ -28,6 +28,19 @@ export interface Employee {
   // paidleave: number;
 }
 
+export interface SalaryRevision {
+  id: string;
+  employeeId: string;
+  effectiveDate: string; // YYYY-MM-DD
+  monthlyGrossSalary: number;
+  basicSalary: number;
+  hra: number;
+  da: number;
+  specialAllowance: number;
+  reason?: string;
+  createdAt?: string;
+}
+
 export enum AttendanceStatus {
   PRESENT = 'Present',
   ABSENT = 'Absent',

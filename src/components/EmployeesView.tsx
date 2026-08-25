@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Employee, EmployeeAttendance } from '../types';
-import { Users, Pencil, Trash2, Eye, Download } from 'lucide-react';
+import { Users, Pencil, Trash2, Eye, Download, TrendingUp } from 'lucide-react';
 import FilteredEmployeeSearch from '../ui/FilteredEmployeeSearch';
 import { exportToCSV } from '../utils/utils';
 
@@ -13,9 +13,10 @@ interface Props {
   onEdit: (e: Employee) => void;
   onDelete: (id: string) => void;
   onView: (e: Employee) => void;
+  onQuickIncrement?: (e: Employee) => void;
 }
 
-const EmployeesView: React.FC<Props> = ({ employees, getFilteredEmployees, searchTerm, setSearchTerm, onAdd, onEdit, onDelete, onView }) => {
+const EmployeesView: React.FC<Props> = ({ employees, getFilteredEmployees, searchTerm, setSearchTerm, onAdd, onEdit, onDelete, onView, onQuickIncrement }) => {
   const filteredEmployees = useMemo(() => getFilteredEmployees, [getFilteredEmployees]);
 
 const handleExportEmployees = () => {
@@ -122,6 +123,11 @@ const handleExportEmployees = () => {
 
                   <td className="p-3 md:p-4 align-top text-right">
                     <div className="flex items-center justify-end gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                      {onQuickIncrement && (
+                        <button onClick={() => onQuickIncrement(emp)} title="Update Salary / Increment" className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors">
+                          <TrendingUp size={18} />
+                        </button>
+                      )}
                       <button onClick={() => onView(emp)} title="View Details" className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors">
                         <Eye size={18} />
                       </button>
