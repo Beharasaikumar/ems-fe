@@ -2,8 +2,11 @@ import { Employee, Payslip, SalaryRevision } from '../types';
 import { PF_RATE, ESI_EMPLOYEE_RATE, ESI_WAGE_LIMIT, PROFESSIONAL_TAX } from '../constants';
 
 const PT_THRESHOLD = 15000;
-const TDS_THRESHOLD = 25000;
-const TDS_RATE = 0.1;
+
+// New Tax Regime (Section 115BAC), FY 2025-2026
+const STANDARD_DEDUCTION = 75000;
+const TAX_REBATE_87A_LIMIT = 700000;
+const HEALTH_EDUCATION_CESS = 0.04;
 
 export type FlatAttendanceRecord = { id?: string; employeeId: string; date: string; status: string };
 
@@ -105,8 +108,35 @@ function ptFor(gross: number): number {
   return gross > PT_THRESHOLD ? PROFESSIONAL_TAX : 0;
 }
 
-function taxFor(gross: number): number {
-  return gross > TDS_THRESHOLD ? Math.round((gross - TDS_THRESHOLD) * TDS_RATE) : 0;
+/**
+ * Projects the given monthly gross to an annual figure and computes monthly TDS under the
+ * 2025-2026 New Tax Regime slabs, the Section 87A rebate (with marginal relief), and 4%
+ * Health & Education Cess — mirrors the backend's payroll generation calculation.
+ */
+export function calculateMonthlyTDS(gross: number): number {
+  const annualGross = Math.max(0, gross) * 12;
+  if (annualGross <= 0) return 0;
+
+  const taxableIncome = Math.max(0, annualGross - Math.min(annualGross, STANDARD_DEDUCTION));
+
+  let baseTax = 0;
+  if (taxableIncome > 300000) baseTax += (Math.min(taxableIncome, 700000) - 300000) * 0.05;
+  if (taxableIncome > 700000) baseTax += (Math.min(taxableIncome, 1000000) - 700000) * 0.10;
+  if (taxableIncome > 1000000) baseTax += (Math.min(taxableIncome, 1200000) - 1000000) * 0.15;
+  if (taxableIncome > 1200000) baseTax += (Math.min(taxableIncome, 1500000) - 1200000) * 0.20;
+  if (taxableIncome > 1500000) baseTax += (taxableIncome - 1500000) * 0.30;
+
+  let taxAfterRebate = baseTax;
+  if (taxableIncome <= TAX_REBATE_87A_LIMIT) {
+    taxAfterRebate = 0;
+  } else {
+    const excessIncome = taxableIncome - TAX_REBATE_87A_LIMIT;
+    if (baseTax > excessIncome) taxAfterRebate = excessIncome;
+  }
+
+  const cess = taxAfterRebate > 0 ? Math.round(taxAfterRebate * HEALTH_EDUCATION_CESS) : 0;
+  const totalAnnualTax = taxAfterRebate + cess;
+  return Math.round(totalAnnualTax / 12);
 }
 
 /** Returns the revision with the latest effectiveDate <= dateStr (revisions must be sorted ascending), or undefined. */
@@ -132,7 +162,7 @@ export function calculateFixedMonthly(emp: Employee, revisions: SalaryRevision[]
   const pf = pfFor(emp, basic);
   const esi = esiFor(emp, gross);
   const pt = ptFor(gross);
-  const tax = taxFor(gross);
+  const tax = calculateMonthlyTDS(gross);
   const totalDeductions = pf + esi + pt + tax;
 
   return {
@@ -169,7 +199,7 @@ export function calculateHistoricalPayroll(
   const pf = pfFor(emp, earnedBasic);
   const esi = esiFor(emp, earnedGross);
   const pt = ptFor(earnedGross);
-  const tax = taxFor(earnedGross);
+  const tax = calculateMonthlyTDS(earnedGross);
   const totalDeductions = pf + esi + pt + tax + advanceAmount;
 
   return {

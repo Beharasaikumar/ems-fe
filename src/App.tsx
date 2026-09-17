@@ -8,6 +8,7 @@ import { AttendanceManager } from './components/AttendanceManager';
 import { PayrollManager } from './components/PayrollManager';
 import { AddEmployeeModal } from './components/AddEmployeeModal';
 import { EmployeeDetailsModal } from './components/EmployeeDetailsModal';
+import { ExperienceCertificateModal } from './components/ExperienceCertificateModal';
 // import SignUp from './components/SignUp';
 import ForgotPassword from './components/ForgotPassword';
 import ResetPassword from './components/ResetPassword';
@@ -55,6 +56,7 @@ const App: React.FC = () => {
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [formModalInitialTab, setFormModalInitialTab] = useState<'general' | 'revisions'>('general');
   const [viewingEmployee, setViewingEmployee] = useState<Employee | null>(null);
+  const [certificateEmployee, setCertificateEmployee] = useState<Employee | null>(null);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
 
   const [bills, setBills] = useState<Bill[]>([]);
@@ -378,6 +380,7 @@ const App: React.FC = () => {
               onDelete={handleDeleteEmployee}
               onView={(emp) => setViewingEmployee(emp)}
               onQuickIncrement={(emp) => { setEditingEmployee(emp); setFormModalInitialTab('revisions'); setIsFormModalOpen(true); }}
+              onCertificate={(emp) => setCertificateEmployee(emp)}
             />
           )}
 
@@ -422,6 +425,13 @@ const App: React.FC = () => {
             employee={viewingEmployee}
             onClose={() => setViewingEmployee(null)}
           />
+
+          {certificateEmployee && (
+            <ExperienceCertificateModal
+              employee={certificateEmployee}
+              onClose={() => setCertificateEmployee(null)}
+            />
+          )}
         </>
       )}
       {currentUser?.role === 'EMPLOYEE' && (

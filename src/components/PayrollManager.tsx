@@ -9,6 +9,7 @@ import {
   currentFYStartYear,
   getFinancialYearOptions,
   calculateFixedMonthly,
+  calculateMonthlyTDS,
 } from '../utils/annualPayroll';
 
 type AttendanceRecord = { id: string; employeeId: string; date: string; status: string };
@@ -466,7 +467,7 @@ export const PayrollManager: React.FC = () => {
             emp.esiEnabled && gross < 21000
               ? Math.ceil(gross * 0.0075)
               : 0; const pt = 200;
-          const tax = gross > 50000 ? Math.round((gross - 50000) * 0.1) : 0;
+          const tax = calculateMonthlyTDS(gross);
           const totalDeductions = pf + esi + pt + tax;
           const netSalary = gross - totalDeductions;
 
