@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   Award, X, Download, Printer, Share2, Copy, Check, ChevronDown, ChevronUp,
-  Leaf, RotateCcw, Settings2, Mail,
+  RotateCcw, Settings2, Mail,
   Phone,
 } from 'lucide-react';
 import html2canvas from 'html2canvas';
@@ -472,7 +472,7 @@ export const ExperienceCertificateModal: React.FC<ExperienceCertificateModalProp
         <div className="p-4 md:p-8 overflow-y-auto bg-slate-50 flex-1 print:p-0 print:bg-white print:overflow-visible print:block">
           <div id="experience-certificate-document" className="relative bg-white border border-slate-200 shadow-sm rounded-xl p-8 max-w-3xl mx-auto text-slate-800 print:border-none print:shadow-none print:rounded-none print:p-0 print:max-w-none print:w-full print:m-0">
             <div className="absolute inset-0 z-0 flex items-center justify-center overflow-hidden pointer-events-none select-none">
-              <Leaf size={320} className="text-emerald-900 opacity-[0.03]" />
+              <img src="/watermark.png" alt="" className="w-80 h-80 object-contain opacity-[0.12]" />
             </div>
 
             <div className="relative z-10">
