@@ -1,5 +1,7 @@
 import React from 'react';
 import { ViewState } from '../types';
+import { usePwaInstall } from '../hooks/usePwaInstall';
+import { PwaInstallModal } from './PwaInstallModal';
 import {
   LayoutDashboard,
   Users,
@@ -10,6 +12,7 @@ import {
   CalendarDays,
   StickyNote,
   X,
+  Download,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -25,6 +28,7 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout, user, pendingLeaveCount = 0, isOpen = false, onClose }) => {
+  const { canInstall, installed, isModalOpen, closeModal, promptInstall, installApp, platform } = usePwaInstall();
   if (!user) return null;
   const adminNavItems: { view: ViewState; label: string; icon: React.ReactNode }[] = [
     { view: 'DASHBOARD', label: 'Dashboard', icon: <LayoutDashboard size={20} /> },
@@ -101,6 +105,31 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout
           ))}
         </nav>
 
+        <div className="px-4 pb-2">
+          <button
+            onClick={() => {
+              promptInstall();
+              onClose?.();
+            }}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+              installed
+                ? 'text-emerald-400 bg-emerald-950/40 hover:bg-emerald-900/40'
+                : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+            }`}
+          >
+            <Download size={20} className={installed ? 'text-emerald-400 shrink-0' : 'text-slate-400 group-hover:text-emerald-400 shrink-0'} />
+            <span className="font-medium text-left flex-1">
+              {installed ? 'App Installed' : 'Download App'}
+            </span>
+            {canInstall && !installed && (
+              <span className="relative flex h-2 w-2 shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+            )}
+          </button>
+        </div>
+
         <div className="p-4 border-t border-slate-800">
           <button
             onClick={onLogout}
@@ -111,6 +140,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onLogout
           </button>
         </div>
       </div>
+
+      <PwaInstallModal
+        isOpen={isModalOpen}
+        onClose={closeModal}
+        canInstall={canInstall}
+        installed={installed}
+        onInstall={installApp}
+        platform={platform}
+      />
     </>
   );
 };

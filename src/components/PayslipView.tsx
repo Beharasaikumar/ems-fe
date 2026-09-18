@@ -91,10 +91,7 @@ if (year === currentYear && month === currentMonth) {
 }
 
 // assume all present unless absent recorded
-const absentDays =
-  employee?.absentDays ??
-  payload?.absentDays ??
-  0;
+const absentDays = payload?.absentDays ?? 0;
 
 // final LOP
 const lopDays = absentDays;
@@ -156,7 +153,7 @@ const lopDays = absentDays;
 ------------------------------
  NET PAY: ${fmt(payload.netSalary)}
 
-HR Remarks: ${payload.remarks ?? employee?.remarks ?? '—'}
+HR Remarks: ${payload.remarks ?? '—'}
 
  This is a system-generated payslip.
   `.trim();
@@ -228,16 +225,38 @@ HR Remarks: ${payload.remarks ?? employee?.remarks ?? '—'}
     const element = document.getElementById('printable-area');
     if (!element) return null;
 
+    // Prevent Tailwind Preflight's `img { display: block }` from breaking html2canvas's
+    // internal FontMetrics calculation, which shifts all text baselines downwards.
+    const fixStyle = document.createElement('style');
+    fixStyle.id = 'html2canvas-font-fix';
+    fixStyle.textContent = 'img { display: inline-block !important; }';
+    document.head.appendChild(fixStyle);
+
     try {
       const canvas = await html2canvas(element, {
         scale: 2,
         backgroundColor: '#ffffff',
         logging: false,
         useCORS: true,
-        allowTaint: true
+        allowTaint: true,
+        onclone: (clonedDoc) => {
+          const cloneStyle = clonedDoc.createElement('style');
+          cloneStyle.textContent = 'img { display: inline-block !important; }';
+          clonedDoc.head.appendChild(cloneStyle);
+        },
       });
 
-      const imgData = canvas.toDataURL('image/png');
+      const flattened = document.createElement('canvas');
+      flattened.width = canvas.width;
+      flattened.height = canvas.height;
+      const ctx = flattened.getContext('2d');
+      if (ctx) {
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, flattened.width, flattened.height);
+        ctx.drawImage(canvas, 0, 0);
+      }
+
+      const imgData = flattened.toDataURL('image/jpeg', 0.95);
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
@@ -247,17 +266,19 @@ HR Remarks: ${payload.remarks ?? employee?.remarks ?? '—'}
       const imgWidth = 210;
       const pageHeight = 297;
 
-      let imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let imgHeight = (flattened.height * imgWidth) / flattened.width;
 
       if (imgHeight > pageHeight) {
         imgHeight = pageHeight;
       }
 
-      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+      pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, imgHeight);
       return pdf.output('blob');
     } catch (error) {
       console.error('PDF Generation failed', error);
       return null;
+    } finally {
+      fixStyle.remove();
     }
   };
 
@@ -482,7 +503,7 @@ HR Remarks: ${payload.remarks ?? employee?.remarks ?? '—'}
           </button>
         </div>
 
-        <div className="p-8 overflow-y-auto bg-slate-50 flex-1">
+        <div className="p-4 sm:p-6 md:p-8 overflow-y-auto bg-slate-50 flex-1">
           {isGenerating && (
             <div className="absolute inset-0 bg-white/80 z-20 flex items-center justify-center flex-col gap-2">
               <Loader2 className="animate-spin text-emerald-600" size={40} />
@@ -493,24 +514,23 @@ HR Remarks: ${payload.remarks ?? employee?.remarks ?? '—'}
           {loading ? (
             <div className="text-center py-12">Loading payslip…</div>
           ) : (
-            <div className="relative bg-white border border-slate-200 shadow-sm rounded-xl p-8 max-w-2xl mx-auto overflow-hidden" id="printable-area">
+            <div className="relative bg-white border border-slate-200 shadow-sm rounded-xl p-4 sm:p-6 md:p-8 max-w-2xl mx-auto overflow-hidden" id="printable-area">
               <div className="absolute inset-0 z-0 flex items-center justify-center overflow-hidden pointer-events-none select-none">
                 <img src="/watermark.png" alt="" className="w-72 h-72 object-contain opacity-[0.12]" />
               </div>
               <div className="relative z-10">
-              <div className="text-center border-b border-slate-200 pb-6 mb-6">
-                <div className="flex items-center justify-center gap-3 mb-2">
-                  <div className="relative w-[200px] h-[80px] rounded-full">
+              <div className="text-center border-b-2 border-green-300 pb-5 mb-6">
+                <div className="flex flex-col items-center justify-center">
+                  <div className="relative w-[135px] h-[44px]">
                     <img
-                      src="/logo.svg"
+                      src="/logo_pay.png"
                       alt="Company Logo"
-                      className="w-full h-full object-contain rounded-full"
+                      className="w-full h-full object-contain"
                     />
                   </div>
+                  <p className="text-[10px] text-slate-400 mt-[-3px] leading-tight">GSTIN: 37AALFL9327Q1ZC</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5 leading-tight">1-118-24/2, 2nd floor, sector 12, near Ushodaya Junc., MVP, Visakhapatnam, AP - 530017</p>
                 </div>
-                <h3 className="font-extrabold text-base text-slate-800">LOMAA IT SOLUTIONS</h3>
-                <p className="text-[10px] text-slate-400 mt-0.5">GSTIN: 37AALFL9327Q1ZC</p>
-                <p className="text-[10px] text-slate-400">1-118-24/2, 2nd floor, sector 12, near Ushodaya Junc., MVP, Visakhapatnam, AP - 530017</p>
               </div>
 
               <div className="text-center mb-8">
@@ -519,47 +539,47 @@ HR Remarks: ${payload.remarks ?? employee?.remarks ?? '—'}
                 </span>
               </div>
 
-              <div className="grid grid-cols-2 gap-y-4 gap-x-8 mb-8 text-sm">
-                <div>
+              <div className="grid grid-cols-2 gap-y-4 gap-x-4 sm:gap-x-8 mb-8 text-sm">
+                <div className="min-w-0">
                   <span className="text-xs text-slate-500 uppercase tracking-wide">Employee Name</span>
-                  <div className="font-bold text-slate-800">{employee?.name ?? payload.employeeName}</div>
+                  <div className="font-bold text-slate-800 break-words">{employee?.name ?? payload.employeeName}</div>
                 </div>
-                <div className="text-right">
+                <div className="text-right min-w-0">
                   <span className="text-xs text-slate-500 uppercase tracking-wide">Employee ID</span>
-                  <div className="font-bold text-slate-800">{payload.employeeId}</div>
+                  <div className="font-bold text-slate-800 break-words">{payload.employeeId}</div>
                 </div>
-                <div className="flex flex-col">
+                <div className="flex flex-col min-w-0">
                   <span className="text-xs text-slate-500 uppercase tracking-wide">Department</span>
-                  <span className="font-bold text-slate-800">{employee?.department ?? payload.employee?.department ?? 'N/A'}</span>
+                  <span className="font-bold text-slate-800 break-words">{employee?.department ?? payload.employee?.department ?? 'N/A'}</span>
                 </div>
-                <div className="flex flex-col text-right">
+                <div className="flex flex-col text-right min-w-0">
                   <span className="text-xs text-slate-500 uppercase tracking-wide">Designation</span>
-                  <span className="font-bold text-slate-800">{employee?.role ?? payload.employee?.role ?? 'N/A'}</span>
+                  <span className="font-bold text-slate-800 break-words">{employee?.role ?? payload.employee?.role ?? 'N/A'}</span>
                 </div>
 
-                <div className="flex flex-col">
+                <div className="flex flex-col min-w-0">
                   <span className="text-xs text-slate-500 uppercase tracking-wide">Bank Account</span>
-                  <span className="font-semibold text-slate-700">{employee?.bankAccountNumber ?? payload.employee?.bankAccountNumber ?? 'N/A'}</span>
+                  <span className="font-semibold text-slate-700 break-all">{employee?.bankAccountNumber ?? payload.employee?.bankAccountNumber ?? 'N/A'}</span>
                 </div>
-                <div className="flex flex-col text-right">
+                <div className="flex flex-col text-right min-w-0">
                   <span className="text-xs text-slate-500 uppercase tracking-wide">PAN Number</span>
-                  <span className="font-semibold text-slate-700 uppercase">{(employee?.pan ?? payload.employee?.pan ?? 'N/A')}</span>
+                  <span className="font-semibold text-slate-700 uppercase break-all">{(employee?.pan ?? payload.employee?.pan ?? 'N/A')}</span>
                 </div>
 
-                <div className="flex flex-col">
+                <div className="flex flex-col min-w-0">
                   <span className="text-xs text-slate-500 uppercase tracking-wide">PF No</span>
-                  <span className="font-semibold text-slate-700 uppercase">{employee?.pfAccountNumber ?? payload.employee?.pfAccountNumber ?? 'N/A'}</span>
+                  <span className="font-semibold text-slate-700 uppercase break-all">{employee?.pfAccountNumber ?? payload.employee?.pfAccountNumber ?? 'N/A'}</span>
                 </div>
-                <div className="flex flex-col text-right">
+                <div className="flex flex-col text-right min-w-0">
                   <span className="text-xs text-slate-500 uppercase tracking-wide">LOP Days</span>
                   <span className="font-semibold text-red-600">{lopDays} days</span>
                 </div>
               </div>
-              <div className="gross-highlight mb-6 grid grid-cols-2 gap-4 text-sm">
-                <div><span className="text-xs text-slate-500 uppercase tracking-wide">
+              <div className="gross-highlight mb-6 grid grid-cols-2 gap-2 sm:gap-4 text-sm">
+                <div className="min-w-0"><span className="text-xs text-slate-500 uppercase tracking-wide">
                   Monthly Gross Salary
                 </span></div>
-                <div className="strong font-bold text-slate-800">
+                <div className="strong font-bold text-slate-800 min-w-0 break-words">
                   ₹{(payload.monthlyGrossSalary ?? payload.earnings?.gross ?? 0).toLocaleString('en-IN')}
                 </div>
               </div>
@@ -567,40 +587,40 @@ HR Remarks: ${payload.remarks ?? employee?.remarks ?? '—'}
 
               {/* Salary Table */}
               <div className="border border-slate-200 rounded-lg overflow-hidden mb-8">
-                <div className="grid grid-cols-2 bg-slate-100 font-semibold text-slate-700 border-b border-slate-200">
-                  <div className="p-3">Earnings</div>
-                  <div className="p-3 border-l border-slate-200">Deductions</div>
+                <div className="grid grid-cols-2 bg-slate-100 font-semibold text-slate-700 border-b border-slate-200 text-xs sm:text-base">
+                  <div className="p-2.5 sm:p-3">Earnings</div>
+                  <div className="p-2.5 sm:p-3 border-l border-slate-200">Deductions</div>
                 </div>
-                <div className="grid grid-cols-2 text-sm">
-                  <div className="p-4 space-y-3">
-                    <div className="flex justify-between"><span>Basic Salary</span> <span>₹{payload.earnings.basic.toLocaleString()}</span></div>
-                    <div className="flex justify-between"><span>HRA</span> <span>₹{payload.earnings.hra.toLocaleString()}</span></div>
-                    <div className="flex justify-between"><span>Special Allow.</span> <span>₹{mergeEarningsForDisplay(payload.earnings).special.toLocaleString()}</span></div>
+                <div className="grid grid-cols-2 text-xs sm:text-sm">
+                  <div className="p-2.5 sm:p-4 space-y-3">
+                    <div className="flex flex-wrap justify-between gap-x-2"><span>Basic Salary</span> <span>₹{payload.earnings.basic.toLocaleString()}</span></div>
+                    <div className="flex flex-wrap justify-between gap-x-2"><span>HRA</span> <span>₹{payload.earnings.hra.toLocaleString()}</span></div>
+                    <div className="flex flex-wrap justify-between gap-x-2"><span>Special Allow.</span> <span>₹{mergeEarningsForDisplay(payload.earnings).special.toLocaleString()}</span></div>
                   </div>
-                  <div className="p-4 space-y-3 border-l border-slate-200 bg-slate-50/50">
-                    <div className="flex justify-between text-slate-700"><span>PF </span> <span>₹{payload.deductions.pf.toLocaleString()}</span></div>
-                    <div className="flex justify-between text-slate-700"><span>ESI </span> <span>₹{payload.deductions.esi.toLocaleString()}</span></div>
-                    <div className="flex justify-between text-slate-700"><span>Prof. Tax</span> <span>₹{payload.deductions.pt.toLocaleString()}</span></div>
+                  <div className="p-2.5 sm:p-4 space-y-3 border-l border-slate-200 bg-slate-50/50">
+                    <div className="flex flex-wrap justify-between gap-x-2 text-slate-700"><span>PF </span> <span>₹{payload.deductions.pf.toLocaleString()}</span></div>
+                    <div className="flex flex-wrap justify-between gap-x-2 text-slate-700"><span>ESI </span> <span>₹{payload.deductions.esi.toLocaleString()}</span></div>
+                    <div className="flex flex-wrap justify-between gap-x-2 text-slate-700"><span>Prof. Tax</span> <span>₹{payload.deductions.pt.toLocaleString()}</span></div>
                     {payload.deductions.emergencyAdvance ? (
-                      <div className="flex justify-between text-slate-700">
+                      <div className="flex flex-wrap justify-between gap-x-2 text-slate-700">
                         <span>Emergency Advance</span>
                         <span>₹{payload.deductions.emergencyAdvance.toLocaleString()}</span>
                       </div>
                     ) : null}
 
                     {payload.deductions.advanceRecovery ? (
-                      <div className="flex justify-between text-red-700 font-semibold">
+                      <div className="flex flex-wrap justify-between gap-x-2 text-red-700 font-semibold">
                         <span>Salary Advance Recovery</span>
                         <span>₹{payload.deductions.advanceRecovery.toLocaleString()}</span>
                       </div>
                     ) : null}
 
-                    <div className="flex justify-between text-slate-700"><span>TDS</span> <span>₹{payload.deductions.tax.toLocaleString()}</span></div>
+                    <div className="flex flex-wrap justify-between gap-x-2 text-slate-700"><span>TDS</span> <span>₹{payload.deductions.tax.toLocaleString()}</span></div>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 font-bold bg-slate-50 border-t border-slate-200">
-                  <div className="p-3 flex justify-between"><span>Gross Earnings</span> <span>₹{payload.earnings.gross.toLocaleString()}</span></div>
-                  <div className="p-3 border-l border-slate-200 flex justify-between text-red-600"><span>Total Ded.</span> <span>₹{payload.deductions.totalDeductions.toLocaleString()}</span></div>
+                <div className="grid grid-cols-2 font-bold bg-slate-50 border-t border-slate-200 text-xs sm:text-base">
+                  <div className="p-2.5 sm:p-3 flex flex-wrap justify-between gap-x-2"><span>Gross Earnings</span> <span>₹{payload.earnings.gross.toLocaleString()}</span></div>
+                  <div className="p-2.5 sm:p-3 border-l border-slate-200 flex flex-wrap justify-between gap-x-2 text-red-600"><span>Total Ded.</span> <span>₹{payload.deductions.totalDeductions.toLocaleString()}</span></div>
                 </div>
               </div>
 
@@ -609,7 +629,7 @@ HR Remarks: ${payload.remarks ?? employee?.remarks ?? '—'}
                 <span className="font-bold text-emerald-700 text-2xl">₹{payload.netSalary.toLocaleString('en-IN')}</span>
               </div>
 
-              {(payload.remarks ?? employee?.remarks) && (
+              {payload.remarks && (
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                   <p className="text-xs font-bold text-yellow-800 uppercase tracking-wide mb-1 flex items-center gap-1">
                     <CheckCircle size={14} /> HR Remarks
@@ -627,7 +647,7 @@ HR Remarks: ${payload.remarks ?? employee?.remarks ?? '—'}
           )}
         </div>
 
-        <div className="p-6 bg-white border-t border-slate-200 flex gap-4 justify-end shrink-0">
+        <div className="p-4 sm:p-6 bg-white border-t border-slate-200 flex flex-col sm:flex-row gap-3 sm:gap-4 sm:justify-end shrink-0">
           {/* <button
             onClick={() => handleAction('WHATSAPP')}
             disabled={isGenerating}
@@ -639,7 +659,7 @@ HR Remarks: ${payload.remarks ?? employee?.remarks ?? '—'}
           <button
             onClick={() => handleAction('EMAIL')}
             disabled={isGenerating}
-            className="flex items-center gap-2 px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+            className="flex items-center justify-center gap-2 px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50 w-full sm:w-auto"
           >
             <Mail size={18} /> Email PDF
           </button>
@@ -647,7 +667,7 @@ HR Remarks: ${payload.remarks ?? employee?.remarks ?? '—'}
           <button
             onClick={() => handleAction('DOWNLOAD')}
             disabled={isGenerating}
-            className="flex items-center gap-2 px-6 py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+            className="flex items-center justify-center gap-2 px-6 py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-medium transition-colors disabled:opacity-50 w-full sm:w-auto"
           >
             <Download size={18} /> Download (PDF)
           </button>

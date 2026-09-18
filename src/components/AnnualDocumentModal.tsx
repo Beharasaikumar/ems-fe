@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Award, Table, X, Download, Printer, Share2, ChevronDown, TrendingUp, ShieldCheck, Star } from 'lucide-react';
+import { Award, Table, X, Download, Printer, Share2, ChevronDown, ChevronUp, TrendingUp, ShieldCheck, Star, Mail, Phone, Globe, Settings2 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { Employee, Payslip, SalaryRevision } from '../types';
@@ -42,6 +42,26 @@ const CERTIFICATE_PURPOSES = [
   'Annual Compensation Review',
 ];
 
+const FIELD_INPUT_CLASS = 'w-full bg-white border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm text-slate-800 outline-none shadow-sm hover:border-slate-300 focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-400 transition-colors';
+const FIELD_SELECT_CLASS = `${FIELD_INPUT_CLASS} appearance-none pr-9 cursor-pointer`;
+
+const Field: React.FC<{ label: string; className?: string; children: React.ReactNode }> = ({ label, className, children }) => (
+  <div className={className}>
+    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">{label}</label>
+    {children}
+  </div>
+);
+
+const ACCENT_BAR_COLORS = ['#d6df2e', '#c3df3c', '#a8d84d', '#93d05c', '#7ec168', '#5a9c4c'];
+
+const AccentGradientBar: React.FC<{ className?: string }> = ({ className }) => (
+  <div className={`flex h-2 overflow-hidden ${className || ''}`}>
+    {ACCENT_BAR_COLORS.map((color) => (
+      <div key={color} className="flex-1" style={{ backgroundColor: color }} />
+    ))}
+  </div>
+);
+
 type MonthRow = {
   label: string;
   prefix: string;
@@ -77,6 +97,10 @@ export const AnnualDocumentModal: React.FC<AnnualDocumentModalProps> = ({
   const [revisions, setRevisions] = useState<SalaryRevision[]>([]);
   const [certificatePurpose, setCertificatePurpose] = useState(CERTIFICATE_PURPOSES[0]);
   const [customPurpose, setCustomPurpose] = useState('');
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [issueDateInput, setIssueDateInput] = useState(() => new Date().toISOString().slice(0, 10));
+  const [signatoryName, setSignatoryName] = useState('D. Lavanya');
+  const [signatoryRole, setSignatoryRole] = useState('Director');
 
   useEffect(() => {
     let cancelled = false;
@@ -99,7 +123,7 @@ export const AnnualDocumentModal: React.FC<AnnualDocumentModalProps> = ({
   const fyLabel = `FY ${fyStartYear} - ${fyStartYear + 1}`;
   const fyRangeLabel = `1st April ${fyStartYear} to 31st March ${fyStartYear + 1}`;
   const refNo = `LOMAA/ASC/${fyStartYear}${fyStartYear + 1}/${employee.id}`;
-  const issueDate = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
+  const issueDate = new Date(issueDateInput).toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
 
   const fixed = useMemo(() => calculateFixedMonthly(employee, revisions), [employee, revisions]);
 
@@ -188,18 +212,207 @@ export const AnnualDocumentModal: React.FC<AnnualDocumentModalProps> = ({
     { basic: 0, hra: 0, special: 0, gross: 0, pf: 0, deductions: 0, net: 0 }
   );
 
-  async function downloadPdf() {
+  async function renderPdf(): Promise<jsPDF | null> {
+    const el = document.getElementById('annual-doc-printable');
+    if (!el) return null;
+
+    const isStatement = view === 'statement';
+    const targetWidth = isStatement ? 1500 : 850;
+
+    // Prevent Tailwind Preflight's `img { display: block }` from breaking html2canvas's
+    // internal FontMetrics calculation, which shifts all text baselines downwards.
+    const fixStyle = document.createElement('style');
+    fixStyle.id = 'html2canvas-font-fix';
+    fixStyle.textContent = 'img { display: inline-block !important; }';
+    document.head.appendChild(fixStyle);
+
+    let canvas: HTMLCanvasElement;
+    try {
+      canvas = await html2canvas(el, {
+        scale: 2,
+        backgroundColor: '#ffffff',
+        logging: false,
+        useCORS: true,
+        allowTaint: true,
+        windowWidth: isStatement ? 1600 : 950,
+        onclone: (clonedDoc) => {
+          const cloneStyle = clonedDoc.createElement('style');
+          cloneStyle.textContent = `
+            img { display: inline-block !important; }
+            #annual-doc-printable {
+              width: ${targetWidth}px !important;
+              max-width: ${targetWidth}px !important;
+              min-width: ${targetWidth}px !important;
+              margin: 0 auto !important;
+              padding: ${isStatement ? '20px 28px' : '24px 32px'} !important;
+              box-sizing: border-box !important;
+            }
+            ${isStatement ? `
+              #annual-doc-printable table td, #annual-doc-printable table th {
+                padding-top: 3px !important;
+                padding-bottom: 3px !important;
+              }
+              #annual-doc-printable .grid-cols-2 {
+                grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+              }
+            ` : `
+              #annual-doc-printable .mb-6 { margin-bottom: 12px !important; }
+              #annual-doc-printable .mb-4 { margin-bottom: 8px !important; }
+              #annual-doc-printable .pt-12 { padding-top: 18px !important; }
+            `}
+          `;
+          clonedDoc.head.appendChild(cloneStyle);
+
+          const clonedEl = clonedDoc.getElementById('annual-doc-printable');
+          if (clonedEl) {
+            clonedEl.style.width = `${targetWidth}px`;
+            clonedEl.style.maxWidth = `${targetWidth}px`;
+            clonedEl.style.minWidth = `${targetWidth}px`;
+            clonedEl.style.margin = '0 auto';
+          }
+        },
+      });
+    } finally {
+      fixStyle.remove();
+    }
+
+    // Flatten onto an explicitly opaque white canvas before export.
+    const flattened = document.createElement('canvas');
+    flattened.width = canvas.width;
+    flattened.height = canvas.height;
+    const ctx = flattened.getContext('2d');
+    if (ctx) {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, flattened.width, flattened.height);
+      ctx.drawImage(canvas, 0, 0);
+    }
+
+    const imgData = flattened.toDataURL('image/jpeg', 0.95);
+    const orientation = isStatement ? 'landscape' : 'portrait';
+    const pdf = new jsPDF({ orientation, unit: 'mm', format: 'a4' });
+
+    const pageWidth = orientation === 'landscape' ? 297 : 210;
+    const pageHeight = orientation === 'landscape' ? 210 : 297;
+
+    // Fill 98.5% - 99% of A4 page with minimal 2mm edge margin
+    const margin = 2;
+    const maxW = pageWidth - margin * 2; // 293mm (landscape) or 206mm (portrait)
+    const maxH = pageHeight - margin * 2; // 206mm (landscape) or 293mm (portrait)
+
+    const scaleW = maxW / flattened.width;
+    const scaleH = maxH / flattened.height;
+
+    // Use full 98.5% width for statement table, proportional clean fit for certificate
+    const finalW = isStatement ? maxW : Math.min(maxW, flattened.width * scaleH);
+    const finalH = isStatement ? Math.min(maxH, flattened.height * scaleW) : maxH;
+
+    const posX = (pageWidth - finalW) / 2;
+    const posY = (pageHeight - finalH) / 2;
+
+    pdf.addImage(imgData, 'JPEG', posX, posY, finalW, finalH);
+    return pdf;
+  }
+
+  function handlePrint() {
     const el = document.getElementById('annual-doc-printable');
     if (!el) return;
+
+    let styles = '';
+    const styleElements = document.querySelectorAll('style, link[rel="stylesheet"]');
+    styleElements.forEach(tag => {
+      styles += tag.outerHTML + '\n';
+    });
+
+    const iframe = document.createElement('iframe');
+    iframe.id = 'annual-doc-print-iframe';
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document;
+    if (!doc) return;
+
+    const isStatement = view === 'statement';
+    doc.open();
+    doc.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>${isStatement ? 'Annual Salary Statement' : 'Annual Salary Certificate'} - ${employee.name}</title>
+        ${styles}
+        <style>
+          @page {
+            size: ${isStatement ? 'A4 landscape' : 'A4 portrait'};
+            margin: ${isStatement ? '3mm 5mm' : '4mm 6mm'};
+          }
+          html, body {
+            background: #ffffff !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 100% !important;
+            height: auto !important;
+          }
+          #annual-doc-printable {
+            border: none !important;
+            box-shadow: none !important;
+            border-radius: 0 !important;
+            max-width: 100% !important;
+            width: 100% !important;
+            margin: 0 auto !important;
+            padding: ${isStatement ? '4px 10px' : '12px 16px'} !important;
+            zoom: ${isStatement ? '0.53' : '0.70'} !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            page-break-after: avoid !important;
+            break-after: avoid !important;
+          }
+          ${isStatement ? `
+          #annual-doc-printable table th,
+          #annual-doc-printable table td {
+            padding-top: 2.5px !important;
+            padding-bottom: 2.5px !important;
+          }
+          #annual-doc-printable .mb-6 {
+            margin-bottom: 0.5rem !important;
+          }
+          #annual-doc-printable .mb-4 {
+            margin-bottom: 0.35rem !important;
+          }
+          #annual-doc-printable .pt-12 {
+            padding-top: 1.5rem !important;
+          }
+          ` : ''}
+        </style>
+      </head>
+      <body>
+        ${el.outerHTML}
+      </body>
+      </html>
+    `);
+    doc.close();
+
+    setTimeout(() => {
+      try {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+      } catch (e) {
+        console.error('Print iframe error:', e);
+      }
+      setTimeout(() => {
+        iframe.remove();
+      }, 2000);
+    }, 300);
+  }
+
+  async function downloadPdf() {
     setBusy(true);
     try {
-      const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff', logging: false, useCORS: true, allowTaint: true });
-      const imgData = canvas.toDataURL('image/png');
-      const imgWidth = 210;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      // Custom page size matching the content exactly — always one page, never cropped or split.
-      const pdf = new jsPDF({ orientation: imgHeight >= imgWidth ? 'portrait' : 'landscape', unit: 'mm', format: [imgWidth, imgHeight] });
-      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+      const pdf = await renderPdf();
+      if (!pdf) return;
       const kind = view === 'certificate' ? 'Certificate' : 'Statement';
       pdf.save(`${kind}_${employee.id}_${fyStartYear}-${fyStartYear + 1}.pdf`);
     } catch (err) {
@@ -211,16 +424,10 @@ export const AnnualDocumentModal: React.FC<AnnualDocumentModalProps> = ({
   }
 
   async function share() {
-    const el = document.getElementById('annual-doc-printable');
-    if (!el) return;
     setBusy(true);
     try {
-      const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff', logging: false, useCORS: true, allowTaint: true });
-      const imgData = canvas.toDataURL('image/png');
-      const imgWidth = 210;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      const pdf = new jsPDF({ orientation: imgHeight >= imgWidth ? 'portrait' : 'landscape', unit: 'mm', format: [imgWidth, imgHeight] });
-      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+      const pdf = await renderPdf();
+      if (!pdf) return;
       const blob = pdf.output('blob');
       const kind = view === 'certificate' ? 'Certificate' : 'Statement';
       const fileName = `${kind}_${employee.id}_${fyStartYear}-${fyStartYear + 1}.pdf`;
@@ -265,19 +472,93 @@ export const AnnualDocumentModal: React.FC<AnnualDocumentModalProps> = ({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden max-h-[92vh] flex flex-col animate-fade-in-up">
-        <div className="bg-slate-900 text-white px-6 py-4 flex flex-wrap justify-between items-center gap-3 shrink-0">
-          <div className="min-w-0">
-            <h2 className="text-lg font-bold flex items-center gap-2">
-              <Award size={18} className="text-emerald-400" /> Annual Salary Certificate &amp; Statement
-            </h2>
-            <p className="text-slate-400 text-xs mt-0.5 truncate">
-              {employee.name} ({employee.id}) &bull; {employee.role || 'N/A'} &bull; {employee.department || 'N/A'}
-            </p>
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 print:p-0 print:bg-white print:static print:inset-auto">
+      <style>{`
+        @media print {
+          @page {
+            size: ${view === 'statement' ? 'A4 landscape' : 'A4 portrait'};
+            margin: ${view === 'statement' ? '3mm 5mm' : '4mm 6mm'};
+          }
+          html, body {
+            background: #ffffff !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            height: auto !important;
+            min-height: auto !important;
+            overflow: visible !important;
+          }
+          body * {
+            visibility: hidden;
+          }
+          #annual-doc-printable,
+          #annual-doc-printable * {
+            visibility: visible !important;
+          }
+          #annual-doc-printable {
+            position: fixed !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            margin: 0 auto !important;
+            padding: ${view === 'statement' ? '4px 10px' : '12px 16px'} !important;
+            border: none !important;
+            box-shadow: none !important;
+            border-radius: 0 !important;
+            background: #ffffff !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            zoom: ${view === 'statement' ? '0.53' : '0.70'} !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            page-break-after: avoid !important;
+            break-after: avoid !important;
+            page-break-before: avoid !important;
+            break-before: avoid !important;
+            z-index: 999999 !important;
+          }
+          ${view === 'statement' ? `
+          #annual-doc-printable table th,
+          #annual-doc-printable table td {
+            padding-top: 2.5px !important;
+            padding-bottom: 2.5px !important;
+          }
+          #annual-doc-printable .mb-6 {
+            margin-bottom: 0.5rem !important;
+          }
+          #annual-doc-printable .mb-4 {
+            margin-bottom: 0.35rem !important;
+          }
+          #annual-doc-printable .pt-12 {
+            padding-top: 1.5rem !important;
+          }
+          ` : ''}
+        }
+      `}</style>
+      <div className="bg-white w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden max-h-[92vh] flex flex-col animate-fade-in-up print:animate-none print:shadow-none print:border-none print:rounded-none print:max-h-none print:overflow-visible print:block print:w-full print:max-w-none">
+        <div className="bg-slate-900 text-white px-4 sm:px-6 py-4 flex flex-col sm:flex-row sm:flex-wrap sm:justify-between sm:items-center gap-3 shrink-0 print:hidden">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h2 className="text-lg font-bold flex items-center gap-2">
+                <Award size={18} className="text-emerald-400 shrink-0" /> Annual Salary Certificate &amp; Statement
+              </h2>
+              <p className="text-slate-400 text-xs mt-0.5 truncate">
+                {employee.name} ({employee.id}) &bull; {employee.role || 'N/A'} &bull; {employee.department || 'N/A'}
+              </p>
+            </div>
+            <button onClick={onClose} className="p-2 hover:bg-slate-800 rounded-full transition-colors shrink-0 sm:hidden">
+              <X size={20} />
+            </button>
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => setDrawerOpen(o => !o)}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${drawerOpen ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-200 hover:bg-slate-700'}`}
+            >
+              <Settings2 size={14} /> {drawerOpen ? 'Hide Settings' : 'Customize'} {drawerOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </button>
+
             <div className="relative">
               <select
                 value={fyStartYear}
@@ -308,69 +589,103 @@ export const AnnualDocumentModal: React.FC<AnnualDocumentModalProps> = ({
               </button>
             </div>
 
-            <button onClick={onClose} className="p-2 hover:bg-slate-800 rounded-full transition-colors">
+            <button onClick={onClose} className="hidden sm:inline-flex p-2 hover:bg-slate-800 rounded-full transition-colors">
               <X size={20} />
             </button>
           </div>
         </div>
 
-        <div className="p-4 md:p-8 overflow-y-auto bg-slate-50 flex-1">
-          {view === 'certificate' && (
-            <div className="max-w-3xl mx-auto mb-4 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-2.5 text-xs">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <label className="font-bold text-emerald-800 shrink-0">Certificate Purpose:</label>
-                  <select
-                    value={certificatePurpose}
-                    onChange={(e) => setCertificatePurpose(e.target.value)}
-                    className="bg-white border border-slate-300 rounded-md px-3 py-1.5 text-slate-700 font-medium outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
-                  >
-                    {CERTIFICATE_PURPOSES.map(p => <option key={p} value={p}>{p}</option>)}
-                    <option value={CUSTOM_PURPOSE_VALUE}>Custom Purpose...</option>
-                  </select>
-                </div>
-                <span className="flex items-center gap-1.5 text-emerald-700 font-semibold shrink-0">
-                  <ShieldCheck size={14} /> Digital Reference: <span className="font-bold">{refNo}</span>
-                </span>
-              </div>
-              {certificatePurpose === CUSTOM_PURPOSE_VALUE && (
-                <input
-                  type="text"
-                  value={customPurpose}
-                  onChange={(e) => setCustomPurpose(e.target.value)}
-                  placeholder="Enter custom purpose"
-                  className="w-full mt-2 bg-white border border-slate-300 rounded-md px-3 py-1.5 text-slate-700 outline-none focus:ring-2 focus:ring-emerald-500"
-                />
+        {drawerOpen && (
+          <div className="bg-slate-50 border-b border-slate-200 px-6 py-4 shrink-0 max-h-[48vh] overflow-y-auto print:hidden">
+            <div className={`grid grid-cols-1 sm:grid-cols-2 ${view === 'certificate' ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} gap-4`}>
+              <Field label="Date of Issuance">
+                <input type="date" value={issueDateInput} onChange={e => setIssueDateInput(e.target.value)} className={FIELD_INPUT_CLASS} />
+              </Field>
+
+              <Field label="Authorized Signatory Name">
+                <input type="text" value={signatoryName} onChange={e => setSignatoryName(e.target.value)} className={FIELD_INPUT_CLASS} />
+              </Field>
+
+              <Field label="Signatory Title">
+                <input type="text" value={signatoryRole} onChange={e => setSignatoryRole(e.target.value)} className={FIELD_INPUT_CLASS} />
+              </Field>
+
+              {view === 'certificate' && (
+                <Field label="Certificate Purpose">
+                  <div className="relative">
+                    <select
+                      value={certificatePurpose}
+                      onChange={(e) => setCertificatePurpose(e.target.value)}
+                      className={FIELD_SELECT_CLASS}
+                    >
+                      {CERTIFICATE_PURPOSES.map(p => <option key={p} value={p}>{p}</option>)}
+                      <option value={CUSTOM_PURPOSE_VALUE}>Custom Purpose...</option>
+                    </select>
+                    <ChevronDown size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  </div>
+                </Field>
               )}
             </div>
-          )}
+
+            {view === 'certificate' && certificatePurpose === CUSTOM_PURPOSE_VALUE && (
+              <input
+                type="text"
+                value={customPurpose}
+                onChange={(e) => setCustomPurpose(e.target.value)}
+                placeholder="Enter custom purpose"
+                className={`${FIELD_INPUT_CLASS} mt-4`}
+              />
+            )}
+
+            <p className="flex items-center gap-1.5 text-emerald-700 font-semibold text-xs mt-4 pt-4 border-t border-slate-200">
+              <ShieldCheck size={14} /> Digital Reference: <span className="font-bold">{refNo}</span>
+            </p>
+          </div>
+        )}
+
+        <div className="p-4 md:p-8 overflow-y-auto bg-slate-50 flex-1 print:p-0 print:bg-white print:overflow-visible">
           {view === 'certificate' ? (
-            <div id="annual-doc-printable" className="relative bg-white border border-slate-200 shadow-sm rounded-xl p-8 max-w-3xl mx-auto text-slate-800">
+            <div id="annual-doc-printable" className="relative bg-white border border-slate-200 shadow-sm rounded-xl p-4 sm:p-6 md:p-8 max-w-3xl mx-auto text-slate-800">
               <div className="absolute inset-0 z-0 flex items-center justify-center overflow-hidden pointer-events-none select-none">
                 <img src="/watermark.png" alt="" className="w-80 h-80 object-contain opacity-[0.12]" />
               </div>
               <div className="relative z-10">
-                <div className="flex justify-between items-start pb-5 border-b border-slate-200 mb-5 gap-4">
-                  <div className="flex gap-3 items-start">
-                    <img src="/logo.svg" alt="Lomaa IT Solutions" className="h-11 w-auto shrink-0" />
-                    <div>
+                <div className="flex flex-col items-center text-center sm:flex-row sm:justify-between sm:items-start sm:text-left pb-5 border-b-2 border-green-300 mb-5 gap-4">
+                  <div className="flex flex-col items-center gap-2 sm:flex-row sm:items-start sm:gap-3 min-w-0">
+                    <div className="md:w-[70px] md:h-[20px]">
+                    <img src="/logo_pay.png" alt="Lomaa IT Solutions" className="h-11 w-auto shrink-0" />
+                    </div>
+                    <div className="min-w-0">
                       <h3 className="font-extrabold text-lg leading-tight">LOMAA IT SOLUTIONS</h3>
-                      {/* <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Enterprise Software &amp; IT Consulting Services</p> */}
                       <p className="text-[10px] text-slate-400 mt-1">GSTIN: 37AALFL9327Q1ZC</p>
                       <p className="text-[10px] text-slate-400 mt-1">1-118-24/2, 2nd floor, sector 12, near Ushodaya Junc., MVP, Visakhapatnam, AP - 530017</p>
                     </div>
                   </div>
-                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md px-2.5 py-1 whitespace-nowrap">OFFICIAL DOCUMENT</span>
+                  <div className="flex flex-col-reverse sm:flex-col items-center gap-1 sm:block sm:shrink-0 sm:text-right">
+                    <span className="inline-block text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md px-2.5 pt-1 pb-1 leading-none whitespace-nowrap">OFFICIAL DOCUMENT</span>
+                    <div className="text-[12px] text-slate-400 sm:mt-0.5 text-left whitespace-nowrap">
+                      <Mail size={11} className="inline-block align-middle mr-1 text-slate-400" style={{ verticalAlign: '-1px' }} />
+                      <span className="align-middle" style={{ fontFamily: "'Comfortaa', sans-serif" }}>hr@lomaait.com</span>
+                    </div>
+                    <div className="text-[12px] text-slate-400 text-left whitespace-nowrap">
+                      <Phone size={11} className="inline-block align-middle mr-1 text-slate-400" style={{ verticalAlign: '-1px' }} />
+                      <span className="align-middle">+91 94415 90527</span>
+                    </div>
+                    <div className="text-[12px] text-slate-400 text-left whitespace-nowrap">
+                      <Globe size={11} className="inline-block align-middle mr-1 text-slate-400" style={{ verticalAlign: '-1px' }} />
+                      <span className="align-middle" style={{ fontFamily: "'Comfortaa', sans-serif" }}>www.lomaait.com</span>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="flex justify-between text-xs text-slate-500 mb-6">
+                <div className="flex flex-wrap justify-between gap-x-4 gap-y-1 text-xs text-slate-500 mb-6 break-all sm:break-normal">
                   <span>Ref. No: <span className="font-semibold text-slate-700">{refNo}</span></span>
-                  <span>Date of Issue: <span className="font-semibold text-slate-700">{issueDate}</span></span>
+                  <span className="whitespace-nowrap">Date of Issue: <span className="font-semibold text-slate-700">{issueDate}</span></span>
                 </div>
 
                 <div className="text-center mb-6">
                   <h1 className="text-lg font-extrabold uppercase tracking-wide">Annual Salary Certificate</h1>
-                  <p className="text-emerald-700 font-bold text-sm mt-1">Financial Year {fyLabel} ({fyRangeLabel})</p>
+                  <p className="text-emerald-700 font-bold text-sm mt-1">{fyLabel} ({fyRangeLabel})</p>
                 </div>
 
                 <p className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">To Whomsoever It May Concern</p>
@@ -379,16 +694,16 @@ export const AnnualDocumentModal: React.FC<AnnualDocumentModalProps> = ({
                   full-time employee of Lomaa IT Solutions, currently working in the capacity of <strong>{employee.role || 'N/A'}</strong> in
                   the <strong>{employee.department || 'N/A'}</strong> department{employee.joinDate ? <> since <strong>{employee.joinDate}</strong></> : null}.
                   As per our official employment and payroll records, the annual compensation details, salary drawn and statutory
-                  deductions for the period of <strong>FY {fyLabel}</strong> are detailed below:
+                  deductions for the period of <strong>{fyLabel}</strong> are detailed below:
                 </p>
 
                 <CertificationParagraph fyIncrement={fyIncrement} fyLabel={fyLabel} />
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 border border-slate-200 rounded-lg p-4 mb-6 text-xs">
-                  <div><p className="text-slate-400 uppercase text-[10px] font-bold mb-1">PAN Number</p><p className="font-semibold uppercase">{employee.pan || 'N/A'}</p></div>
-                  <div><p className="text-slate-400 uppercase text-[10px] font-bold mb-1">Bank Account No.</p><p className="font-semibold">•••• {(employee.bankAccountNumber || '').slice(-4) || 'N/A'}</p></div>
-                  <div><p className="text-slate-400 uppercase text-[10px] font-bold mb-1">PF / UAN No.</p><p className="font-semibold">{employee.pfAccountNumber || 'N/A'}</p></div>
-                  <div><p className="text-slate-400 uppercase text-[10px] font-bold mb-1">Total Paid Days</p><p className="font-semibold text-emerald-700">{totalPaidDays} / {totalDaysAll} Days</p></div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-3 bg-slate-50 border border-slate-200 rounded-lg p-4 mb-6 text-xs">
+                  <div className="min-w-0"><p className="text-slate-400 uppercase text-[10px] font-bold mb-1">PAN Number</p><p className="font-semibold uppercase break-all">{employee.pan || 'N/A'}</p></div>
+                  <div className="min-w-0"><p className="text-slate-400 uppercase text-[10px] font-bold mb-1">Bank Account No.</p><p className="font-semibold break-all">•••• {(employee.bankAccountNumber || '').slice(-4) || 'N/A'}</p></div>
+                  <div className="min-w-0"><p className="text-slate-400 uppercase text-[10px] font-bold mb-1">PF / UAN No.</p><p className="font-semibold break-all">{employee.pfAccountNumber || 'N/A'}</p></div>
+                  <div className="min-w-0"><p className="text-slate-400 uppercase text-[10px] font-bold mb-1">Total Paid Days</p><p className="font-semibold text-emerald-700 break-words">{totalPaidDays} / {totalDaysAll} Days</p></div>
                 </div>
 
                 <CertificateIncrementCard fyIncrement={fyIncrement} />
@@ -397,7 +712,7 @@ export const AnnualDocumentModal: React.FC<AnnualDocumentModalProps> = ({
                   <div className="grid grid-cols-3 bg-slate-900 text-white text-[11px] font-bold uppercase">
                     <div className="p-2.5 px-4">Compensation Component</div>
                     <div className="p-2.5 text-right">Monthly Rate (₹)</div>
-                    <div className="p-2.5 pr-4 text-right">Annual Amount (FY {fyLabel})</div>
+                    <div className="p-2.5 pr-4 text-right">Annual Amount ({fyLabel})</div>
                   </div>
                   <div className="bg-emerald-50 text-emerald-800 text-[11px] font-bold px-4 py-1.5">A. Earnings &amp; Allowances</div>
                   <Row label={`Basic Salary (${employee.basicSalary && fixed.earnings.gross ? Math.round((fixed.earnings.basic / fixed.earnings.gross) * 100) : 0}% of Gross)`} monthly={fixed.earnings.basic} annual={fixed.earnings.basic * 12} />
@@ -422,7 +737,7 @@ export const AnnualDocumentModal: React.FC<AnnualDocumentModalProps> = ({
                     <p className="text-slate-400 uppercase text-[10px] font-bold">Annual Net Salary in Words</p>
                     <p className="font-semibold text-slate-700">{amountInWordsINR(annualNet)}</p>
                   </div>
-                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-3 py-1 whitespace-nowrap">
+                  <span className="inline-block text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-3.5 pt-1 pb-1.5 leading-none whitespace-nowrap">
                     Issued for: {certificatePurpose === CUSTOM_PURPOSE_VALUE ? (customPurpose || 'Custom Purpose') : certificatePurpose}
                   </span>
                 </div>
@@ -439,14 +754,9 @@ export const AnnualDocumentModal: React.FC<AnnualDocumentModalProps> = ({
                     <img src="/hrsign.png" alt="Authorized Signature" className="absolute left-0 top-2 w-36 h-auto object-contain pointer-events-none select-none" />
 
                     <p className="pt-12 text-[12px] text-slate-500 mt-1">Authorized Signatory</p>
-                    <p className="text-[12px] text-slate-400">D. Lavanya</p>
-                    <p className="text-[12px] text-slate-400">Director</p>
+                    <p className="text-[12px] text-slate-400">{signatoryName}</p>
+                    <p className="text-[12px] text-slate-400">{signatoryRole}</p>
                   </div>
-                  {/* <div className="text-right">
-                  <img src="/hrsign.png" alt="Authorized Signature" className="h-24 w-auto ml-auto -mb-2" />
-                  <p className="text-[10px] text-slate-500">Authorized Signatory / HR Head</p>
-                  <p className="text-[10px] text-slate-400">Corporate HR &amp; Operations</p>
-                </div> */}
                 </div>
 
                 <div className="flex flex-col sm:flex-row justify-between gap-1 mt-6 pt-3 border-t border-slate-100 text-[9px] text-slate-400">
@@ -454,40 +764,59 @@ export const AnnualDocumentModal: React.FC<AnnualDocumentModalProps> = ({
                   <span>Page 1 of 1</span>
                   <span>Lomaa IT Solutions • Confidential</span>
                 </div>
+
+                <AccentGradientBar className="mt-6 -mx-4 sm:-mx-6 md:-mx-8 -mb-4 sm:-mb-6 md:-mb-8 rounded-b-xl print:mx-0 print:mb-0 print:rounded-none" />
               </div>
             </div>
           ) : (
-            <div id="annual-doc-printable" className="relative bg-white border border-slate-200 shadow-sm rounded-xl p-6 md:p-8 max-w-5xl mx-auto text-slate-800">
+            <div id="annual-doc-printable" className="relative bg-white border border-slate-200 shadow-sm rounded-xl p-4 sm:p-6 md:p-8 max-w-5xl mx-auto text-slate-800">
               <div className="absolute inset-0 z-0 flex items-center justify-center overflow-hidden pointer-events-none select-none">
                 <img src="/watermark.png" alt="" className="w-96 h-96 object-contain opacity-[0.12]" />
               </div>
               <div className="relative z-10">
-                <div className="flex justify-between items-start pb-4 border-b border-slate-200 mb-4 gap-4">
-                  <div className="flex gap-3 items-start">
-                    <img src="/logo.svg" alt="Lomaa IT Solutions" className="h-11 w-auto shrink-0" />
-                    <div>
+                <div className="flex flex-col items-center text-center sm:flex-row sm:justify-between sm:items-start sm:text-left pb-4 border-b-2 border-green-300 mb-4 gap-4">
+                  <div className="flex flex-col items-center gap-2 sm:flex-row sm:items-start sm:gap-3 min-w-0">
+                    <div className="md:w-[70px] md:h-[20px]">
+                      <img src="/logo_pay.png" alt="Lomaa IT Solutions" className="h-11 w-auto shrink-0" />
+                    </div>
+                    <div className="min-w-0">
                       <h3 className="font-extrabold text-lg leading-tight">LOMAA IT SOLUTIONS</h3>
                       <p className="text-[10px] text-slate-400 mt-1">GSTIN: 37AALFL9327Q1ZC</p>
                       <p className="text-[10px] text-slate-400 mt-1">1-118-24/2, 2nd floor, sector 12, near Ushodaya Junc., MVP, Visakhapatnam, AP - 530017</p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md px-2.5 py-1 whitespace-nowrap">FY {fyLabel}</span>
-                    <p className="text-[10px] text-slate-400 mt-1.5">Issue Date: {issueDate}</p>
-                    <p className="text-[10px] text-slate-400">Ref: {refNo}</p>
+                  <div className="flex flex-col-reverse sm:flex-col items-center gap-1 sm:block sm:shrink-0 sm:text-right">
+                    <span className="inline-block text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md px-2.5 pt-1 pb-1 leading-none whitespace-nowrap">OFFICIAL DOCUMENT</span>
+                    <div className="text-[12px] text-slate-400 sm:mt-0.5 text-left whitespace-nowrap">
+                      <Mail size={11} className="inline-block align-middle mr-1 text-slate-400" style={{ verticalAlign: '-1px' }} />
+                      <span className="align-middle" style={{ fontFamily: "'Comfortaa', sans-serif" }}>hr@lomaait.com</span>
+                    </div>
+                    <div className="text-[12px] text-slate-400 text-left whitespace-nowrap">
+                      <Phone size={11} className="inline-block align-middle mr-1 text-slate-400" style={{ verticalAlign: '-1px' }} />
+                      <span className="align-middle">+91 94415 90527</span>
+                    </div>
+                    <div className="text-[12px] text-slate-400 text-left whitespace-nowrap">
+                      <Globe size={11} className="inline-block align-middle mr-1 text-slate-400" style={{ verticalAlign: '-1px' }} />
+                      <span className="align-middle" style={{ fontFamily: "'Comfortaa', sans-serif" }}>www.lomaait.com</span>
+                    </div>
                   </div>
                 </div>
 
+                <div className="flex mb-5 justify-between items-center gap-3 flex-wrap">
+                  <p className="text-[10px] text-slate-400">Ref: {refNo}</p>
+                  <span className="inline-block text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md px-2.5 pt-1 pb-1 leading-none whitespace-nowrap">{fyLabel}</span>
+                  <p className="text-[10px] text-slate-400 mt-1.5">Issue Date: {issueDate}</p>
+                </div>
                 <div className="text-center mb-5">
                   <h1 className="text-md font-extrabold uppercase tracking-wide">12-Month Annual Salary Statement &amp; Payroll Register</h1>
                   <p className="text-emerald-700 font-bold text-xs mt-1 uppercase">Assessment Period: {fyRangeLabel}</p>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 border border-slate-200 rounded-lg p-4 mb-5 text-xs">
-                  <div><p className="text-slate-400 uppercase text-[10px] font-bold mb-1">Employee Name</p><p className="font-semibold">{employee.name}</p></div>
-                  <div><p className="text-slate-400 uppercase text-[10px] font-bold mb-1">Designation &amp; Dept</p><p className="font-semibold">{employee.role || 'N/A'} &bull; {employee.department || 'N/A'}</p></div>
-                  <div><p className="text-slate-400 uppercase text-[10px] font-bold mb-1">PAN / UAN-PF</p><p className="font-semibold">{employee.pan || 'N/A'} / {employee.pfAccountNumber || 'N/A'}</p></div>
-                  <div><p className="text-slate-400 uppercase text-[10px] font-bold mb-1">Monthly Base Gross</p><p className="font-semibold">{formatINR(fixed.earnings.gross)}</p></div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-3 bg-slate-50 border border-slate-200 rounded-lg p-4 mb-5 text-xs">
+                  <div className="min-w-0"><p className="text-slate-400 uppercase text-[10px] font-bold mb-1">Employee Name</p><p className="font-semibold break-words">{employee.name}</p></div>
+                  <div className="min-w-0"><p className="text-slate-400 uppercase text-[10px] font-bold mb-1">Designation &amp; Dept</p><p className="font-semibold break-words">{employee.role || 'N/A'} &bull; {employee.department || 'N/A'}</p></div>
+                  <div className="min-w-0"><p className="text-slate-400 uppercase text-[10px] font-bold mb-1">PAN / UAN-PF</p><p className="font-semibold break-all">{employee.pan || 'N/A'} / {employee.pfAccountNumber || 'N/A'}</p></div>
+                  <div className="min-w-0"><p className="text-slate-400 uppercase text-[10px] font-bold mb-1">Monthly Base Gross</p><p className="font-semibold break-words">{formatINR(fixed.earnings.gross)}</p></div>
                 </div>
 
                 <IncrementBanner fyIncrement={fyIncrement} />
@@ -522,28 +851,28 @@ export const AnnualDocumentModal: React.FC<AnnualDocumentModalProps> = ({
                           }
                         }
                         return (
-                        <tr key={r.prefix} className={r.active ? '' : 'text-slate-300'}>
-                          <td className="p-2 px-3 font-semibold">
-                            {r.label}
-                            {isRevisedRate && (
-                              <span className="block text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-1.5 py-0.5 mt-0.5 w-fit">
-                                Revised Rate
-                              </span>
-                            )}
-                          </td>
-                          <td className="p-2 text-right">{r.active ? `${r.paidDays}/${r.totalDays}` : '—'}</td>
-                          <td className="p-2 text-right">{r.active ? r.basic.toLocaleString('en-IN') : '—'}</td>
-                          <td className="p-2 text-right">{r.active ? r.hra.toLocaleString('en-IN') : '—'}</td>
-                          <td className="p-2 text-right">{r.active ? r.special.toLocaleString('en-IN') : '—'}</td>
-                          <td className="p-2 text-right font-semibold bg-emerald-50/60">{r.active ? r.gross.toLocaleString('en-IN') : '—'}</td>
-                          <td className="p-2 text-right">{r.active ? r.pf.toLocaleString('en-IN') : '—'}</td>
-                          <td className="p-2 text-right">{r.active && r.esi ? r.esi.toLocaleString('en-IN') : '-'}</td>
-                          <td className="p-2 text-right">{r.active ? r.pt.toLocaleString('en-IN') : '—'}</td>
-                          <td className="p-2 text-right">{r.active ? r.tax.toLocaleString('en-IN') : '—'}</td>
-                          <td className="p-2 text-right">{r.active && r.advance ? r.advance.toLocaleString('en-IN') : '-'}</td>
-                          <td className="p-2 text-right text-red-600 font-medium">{r.active ? r.totalDeductions.toLocaleString('en-IN') : '—'}</td>
-                          <td className="p-2 px-3 text-right font-bold bg-emerald-50/60">{r.active ? r.netSalary.toLocaleString('en-IN') : '—'}</td>
-                        </tr>
+                          <tr key={r.prefix} className={r.active ? '' : 'text-slate-300'}>
+                            <td className="p-2 px-3 font-semibold">
+                              {r.label}
+                              {isRevisedRate && (
+                                <span className="inline-block text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-1.5 pt-0.5 pb-0.5 leading-none mt-0.5 w-fit whitespace-nowrap">
+                                  Revised Rate
+                                </span>
+                              )}
+                            </td>
+                            <td className="p-2 text-right">{r.active ? `${r.paidDays}/${r.totalDays}` : '—'}</td>
+                            <td className="p-2 text-right">{r.active ? r.basic.toLocaleString('en-IN') : '—'}</td>
+                            <td className="p-2 text-right">{r.active ? r.hra.toLocaleString('en-IN') : '—'}</td>
+                            <td className="p-2 text-right">{r.active ? r.special.toLocaleString('en-IN') : '—'}</td>
+                            <td className="p-2 text-right font-semibold bg-emerald-50/60">{r.active ? r.gross.toLocaleString('en-IN') : '—'}</td>
+                            <td className="p-2 text-right">{r.active ? r.pf.toLocaleString('en-IN') : '—'}</td>
+                            <td className="p-2 text-right">{r.active && r.esi ? r.esi.toLocaleString('en-IN') : '-'}</td>
+                            <td className="p-2 text-right">{r.active ? r.pt.toLocaleString('en-IN') : '—'}</td>
+                            <td className="p-2 text-right">{r.active ? r.tax.toLocaleString('en-IN') : '—'}</td>
+                            <td className="p-2 text-right">{r.active && r.advance ? r.advance.toLocaleString('en-IN') : '-'}</td>
+                            <td className="p-2 text-right text-red-600 font-medium">{r.active ? r.totalDeductions.toLocaleString('en-IN') : '—'}</td>
+                            <td className="p-2 px-3 text-right font-bold bg-emerald-50/60">{r.active ? r.netSalary.toLocaleString('en-IN') : '—'}</td>
+                          </tr>
                         );
                       })}
                       <tr className="bg-slate-900 text-white font-bold">
@@ -580,14 +909,9 @@ export const AnnualDocumentModal: React.FC<AnnualDocumentModalProps> = ({
                     <img src="/hrsign.png" alt="Authorized Signature" className="absolute left-0 top-2 w-36 h-auto object-contain pointer-events-none select-none" />
 
                     <p className="pt-12 text-[12px] text-slate-500 mt-1">Authorized Signatory</p>
-                    <p className="text-[12px] text-slate-400">D. Lavanya</p>
-                    <p className="text-[12px] text-slate-400">Director</p>
+                    <p className="text-[12px] text-slate-400">{signatoryName}</p>
+                    <p className="text-[12px] text-slate-400">{signatoryRole}</p>
                   </div>
-                  {/* <div className="text-right">
-                  <img src="/hrsign.png" alt="Authorized Signature" className="h-24 w-auto ml-auto -mb-2" />
-                  <p className="text-[10px] text-slate-500">Authorized Signatory / HR Head</p>
-                  <p className="text-[10px] text-slate-400">Lomaa IT Solutions</p>
-                </div> */}
                 </div>
 
                 <div className="flex flex-col sm:flex-row justify-between gap-1 mt-4 pt-3 border-t border-slate-100 text-[9px] text-slate-400">
@@ -595,18 +919,20 @@ export const AnnualDocumentModal: React.FC<AnnualDocumentModalProps> = ({
                   <span>Ref: {refNo}</span>
                   <span>Lomaa IT Solutions • Confidential</span>
                 </div>
+
+                <AccentGradientBar className="mt-4 -mx-4 sm:-mx-6 md:-mx-8 -mb-4 sm:-mb-6 md:-mb-8 rounded-b-xl print:mx-0 print:mb-0 print:rounded-none" />
               </div>
             </div>
           )}
         </div>
 
-        <div className="p-4 bg-white border-t border-slate-200 flex flex-wrap gap-2 justify-between items-center shrink-0">
+        <div className="p-4 bg-white border-t border-slate-200 flex flex-wrap gap-2 justify-between items-center shrink-0 print:hidden">
           <span className="text-xs text-slate-400">{busy ? 'Preparing…' : 'Ready for official download or printing (FY ' + fyLabel.replace('FY ', '') + ')'}</span>
           <div className="flex flex-wrap gap-2">
             <button onClick={exportCsv} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 font-medium text-sm transition-colors">
               <Download size={16} /> Export CSV
             </button>
-            <button onClick={() => window.print()} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 font-medium text-sm transition-colors">
+            <button onClick={handlePrint} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 font-medium text-sm transition-colors">
               <Printer size={16} /> Print
             </button>
             <button onClick={share} disabled={busy} className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-medium text-sm transition-colors disabled:opacity-50">
@@ -652,10 +978,10 @@ const IncrementBanner: React.FC<{ fyIncrement: { current: SalaryRevision; previo
       </div>
       {fyIncrement.current.reason && (
         <div className="text-[10px] text-gray-300 bg-white border border-emerald-200 rounded-md px-3 py-1 whitespace-nowrap">
-        Appraisal Reason <br/>
-        <span className="text-[12px] font-bold text-emerald-700">
-          {fyIncrement.current.reason}
-        </span>
+          Appraisal Reason <br />
+          <span className="text-[12px] font-bold text-emerald-700">
+            {fyIncrement.current.reason}
+          </span>
         </div>
       )}
     </div>
@@ -671,7 +997,7 @@ const CertificationParagraph: React.FC<{ fyIncrement: FyIncrement; fyLabel: stri
   return (
     <div className="bg-emerald-50 border-l-4 border-emerald-500 rounded-r-lg p-4 mb-6 text-sm text-slate-700 leading-relaxed">
       <span className="font-bold text-emerald-800">Salary Increment Certification:</span> This is further to officially certify that during
-      the assessment period <strong>FY {fyLabel}</strong>, the employee was awarded a formal salary increment
+      the assessment period <strong>{fyLabel}</strong>, the employee was awarded a formal salary increment
       from <strong>{formatINR(fyIncrement.previous.monthlyGrossSalary)}/-</strong> to <strong>{formatINR(fyIncrement.current.monthlyGrossSalary)}/-</strong> per
       month effective from <strong>{fyIncrement.current.effectiveDate}</strong>{fyIncrement.current.reason ? <> ({fyIncrement.current.reason})</> : null},
       representing a salary hike of <strong className="text-emerald-700">+{formatINR(diff)}/- per month (+{pct}% increase)</strong>.
@@ -692,7 +1018,7 @@ const CertificateIncrementCard: React.FC<{ fyIncrement: FyIncrement }> = ({ fyIn
           </span>
           <span className="font-bold text-xs sm:text-sm text-slate-800 uppercase tracking-wide">Official Salary Increment &amp; Revision Endorsement</span>
         </div>
-        <span className="text-[10px] font-bold text-white bg-emerald-600 rounded-full px-3 py-1 whitespace-nowrap">+{pct}% INCREMENT</span>
+        <span className="inline-block text-[10px] font-bold text-white bg-emerald-600 rounded-full px-3 pt-1 pb-1 leading-none whitespace-nowrap">+{pct}% INCREMENT</span>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
         <div className="border border-slate-200 rounded-lg p-3">

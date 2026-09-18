@@ -2,11 +2,17 @@
      @tailwind components;
      @tailwind utilities;
 
+     html {
+         overflow-x: hidden;
+     }
+
      body {
          margin: 0;
          padding: 0;
          box-sizing: border-box;
          font-family: 'Inter', sans-serif;
+         overflow-x: hidden;
+         -webkit-text-size-adjust: 100%;
      }
 
 

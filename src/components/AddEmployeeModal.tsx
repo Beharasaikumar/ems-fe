@@ -487,7 +487,7 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
         </div>
 
         {employeeToEdit && (
-          <div className="flex gap-1 bg-slate-100 border-b border-slate-200 px-4 pt-3 pb-0">
+          <div className="flex flex-wrap gap-1 bg-slate-100 border-b border-slate-200 px-4 pt-3 pb-0">
             <button
               type="button"
               onClick={() => setActiveTab('general')}

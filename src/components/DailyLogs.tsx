@@ -302,10 +302,10 @@ export const DailyLogs: React.FC = () => {
 
 
             {isAdding && (
-                <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden">
+                <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
 
-                        <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between">
+                        <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between shrink-0">
                             <div className="flex items-center gap-2 font-semibold">
                                 <span className="text-lg">＋</span>
                                 Add Log Entry
@@ -320,7 +320,7 @@ export const DailyLogs: React.FC = () => {
                         </div>
 
 
-                        <div className="p-6 space-y-4">
+                        <div className="p-6 space-y-4 overflow-y-auto">
                             <form onSubmit={handleSubmit} className="space-y-5">
                                 <div>
                                     <label className="text-sm font-semibold">Title</label>
@@ -337,7 +337,7 @@ export const DailyLogs: React.FC = () => {
                                     <label className="text-sm font-semibold">Category</label>
                                     <div>
                                         <select
-                                            className="w-1/3 border rounded-lg px-3 py-2 mt-1"
+                                            className="w-full sm:w-1/3 border rounded-lg px-3 py-2 mt-1"
                                             value={category}
                                             onChange={e =>
                                                 setCategory(e.target.value as any)

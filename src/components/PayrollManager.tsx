@@ -635,8 +635,8 @@ export const PayrollManager: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex flex-col items-stretch sm:items-end gap-2">
-            <div className="flex items-center gap-2 lg:gap-3 flex-nowrap">
+          <div className="flex flex-col items-stretch sm:items-end gap-2 lg:min-w-fit">
+            <div className="flex items-center gap-2 lg:gap-3 flex-wrap lg:flex-nowrap">
               {activeTab === 'MONTHLY' && (
                 <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2 shadow-sm text-sm font-medium shrink-0">
                   <button
@@ -676,7 +676,7 @@ export const PayrollManager: React.FC = () => {
                 </div>
               )}
 
-              <div className="relative shrink-0 w-40 lg:w-52">
+              <div className="relative shrink-0 w-full sm:w-40 lg:w-52">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                 <input
                   type="text"
@@ -732,18 +732,18 @@ export const PayrollManager: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex bg-slate-100 rounded-lg border border-slate-200 p-1 w-fit">
+        <div className="flex w-full sm:w-fit bg-slate-100 rounded-lg border border-slate-200 p-1">
           <button
             onClick={() => setActiveTab('MONTHLY')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'MONTHLY' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            className={`flex-1 sm:flex-initial min-w-0 flex items-center justify-center text-center gap-1.5 px-2 sm:px-3 py-1.5 rounded text-xs sm:text-sm font-bold leading-tight transition-all whitespace-normal sm:whitespace-nowrap ${activeTab === 'MONTHLY' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
           >
-            <FileText size={14} /> Monthly Payslips
+            <FileText size={14} className="shrink-0" /> Monthly Payslips
           </button>
           <button
             onClick={() => setActiveTab('YEARLY')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'YEARLY' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            className={`flex-1 sm:flex-initial min-w-0 flex items-center justify-center text-center gap-1.5 px-2 sm:px-3 py-1.5 rounded text-xs sm:text-sm font-bold leading-tight transition-all whitespace-normal sm:whitespace-nowrap ${activeTab === 'YEARLY' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
           >
-            <Award size={14} /> Annual Salary Certificate &amp; Statement
+            <Award size={14} className="shrink-0" /> Annual Salary Certificate &amp; Statement
           </button>
         </div>
       </div>

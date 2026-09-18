@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import {
   Award, X, Download, Printer, Share2, Copy, Check, ChevronDown, ChevronUp,
   RotateCcw, Settings2, Mail,
-  Phone,
+  Phone, Globe,
 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
@@ -49,6 +49,16 @@ const FieldSelect: React.FC<{ label: string; value: string; onChange: (v: string
       <ChevronDown size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
     </div>
   </Field>
+);
+
+const ACCENT_BAR_COLORS = ['#d6df2e', '#c3df3c', '#a8d84d', '#93d05c', '#7ec168', '#5a9c4c'];
+
+const AccentGradientBar: React.FC<{ className?: string }> = ({ className }) => (
+  <div className={`flex h-2 overflow-hidden ${className || ''}`}>
+    {ACCENT_BAR_COLORS.map((color) => (
+      <div key={color} className="flex-1" style={{ backgroundColor: color }} />
+    ))}
+  </div>
 );
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
@@ -139,8 +149,8 @@ export const ExperienceCertificateModal: React.FC<ExperienceCertificateModalProp
   const separationStatus = isRelieved ? 'Relieved in Good Standing' : 'Currently in Active Service';
 
   const declarationText = isRelieved
-    ? <>This is to certify that <strong>{employee.name}</strong> (Employee ID: <strong>{employee.id}</strong>), holding PAN <strong>{employee.pan || 'N/A'}</strong>, was employed as a full-time employee with Lomaa IT Solutions Private Limited from <strong>{formattedJoinDate}</strong> to <strong>{formattedEndDate}</strong>.</>
-    : <>This is to certify that <strong>{employee.name}</strong> (Employee ID: <strong>{employee.id}</strong>), holding PAN <strong>{employee.pan || 'N/A'}</strong>, has been employed as a full-time employee with Lomaa IT Solutions Private Limited since <strong>{formattedJoinDate}</strong>, and is currently working with the organization in good standing.</>;
+    ? <>This is to certify that <strong>{employee.name}</strong> (Employee ID: <strong>{employee.id}</strong>), holding PAN <strong>{employee.pan || 'N/A'}</strong>, was employed as a full-time employee with Lomaa IT Solutions from <strong>{formattedJoinDate}</strong> to <strong>{formattedEndDate}</strong>.</>
+    : <>This is to certify that <strong>{employee.name}</strong> (Employee ID: <strong>{employee.id}</strong>), holding PAN <strong>{employee.pan || 'N/A'}</strong>, has been employed as a full-time employee with Lomaa IT Solutions since <strong>{formattedJoinDate}</strong>, and is currently working with the organization in good standing.</>;
 
   const conductText = <>During their period of employment with Lomaa IT Solutions, we found them to be sincere, diligent, hardworking, and professionally dedicated. They exhibited high ethical standards, dependable teamwork, and technical competence in all assignments entrusted to them. Their conduct and character were certified as <strong>{conduct}</strong> throughout their tenure.</>;
 
@@ -172,8 +182,8 @@ export const ExperienceCertificateModal: React.FC<ExperienceCertificateModalProp
     lines.push('TO WHOMSOEVER IT MAY CONCERN');
     lines.push('');
     lines.push(isRelieved
-      ? `This is to certify that ${employee.name} (Employee ID: ${employee.id}), holding PAN ${employee.pan || 'N/A'}, was employed as a full-time employee with Lomaa IT Solutions Private Limited from ${formattedJoinDate} to ${formattedEndDate}.`
-      : `This is to certify that ${employee.name} (Employee ID: ${employee.id}), holding PAN ${employee.pan || 'N/A'}, has been employed as a full-time employee with Lomaa IT Solutions Private Limited since ${formattedJoinDate}, and is currently working with the organization in good standing.`);
+      ? `This is to certify that ${employee.name} (Employee ID: ${employee.id}), holding PAN ${employee.pan || 'N/A'}, was employed as a full-time employee with Lomaa IT Solutions from ${formattedJoinDate} to ${formattedEndDate}.`
+      : `This is to certify that ${employee.name} (Employee ID: ${employee.id}), holding PAN ${employee.pan || 'N/A'}, has been employed as a full-time employee with Lomaa IT Solutions since ${formattedJoinDate}, and is currently working with the organization in good standing.`);
     lines.push('');
     lines.push(`Designation: ${designation || 'N/A'}`);
     lines.push(`Department: ${department || 'N/A'}`);
@@ -230,20 +240,42 @@ export const ExperienceCertificateModal: React.FC<ExperienceCertificateModalProp
         logging: false,
         useCORS: true,
         allowTaint: true,
+        windowWidth: 950,
         onclone: (clonedDoc) => {
           const cloneStyle = clonedDoc.createElement('style');
-          cloneStyle.textContent = 'img { display: inline-block !important; }';
+          cloneStyle.textContent = `
+            img { display: inline-block !important; }
+            #experience-certificate-document {
+              width: 850px !important;
+              max-width: 850px !important;
+              min-width: 850px !important;
+              margin: 0 auto !important;
+              padding: 24px 32px !important;
+              box-sizing: border-box !important;
+            }
+            #experience-certificate-document .mb-6 { margin-bottom: 12px !important; }
+            #experience-certificate-document .mb-5 { margin-bottom: 10px !important; }
+            #experience-certificate-document .pt-12 { padding-top: 18px !important; }
+          `;
           clonedDoc.head.appendChild(cloneStyle);
+
+          const clonedEl = clonedDoc.getElementById('experience-certificate-document');
+          if (clonedEl) {
+            clonedEl.style.width = '850px';
+            clonedEl.style.maxWidth = '850px';
+            clonedEl.style.minWidth = '850px';
+            clonedEl.style.margin = '0 auto';
+          }
+          if (clonedDoc.body) {
+            clonedDoc.body.style.width = '950px';
+            clonedDoc.body.style.minWidth = '950px';
+          }
         },
       });
     } finally {
       fixStyle.remove();
     }
 
-    // Flatten onto an explicitly opaque white canvas before export. Any pixel html2canvas
-    // leaves transparent (rather than painted white) can render as solid black once embedded
-    // as a PNG in the PDF, since PDF viewers don't composite alpha the way a browser does.
-    // Exporting as JPEG (no alpha channel at all) makes that failure mode impossible.
     const flattened = document.createElement('canvas');
     flattened.width = canvas.width;
     flattened.height = canvas.height;
@@ -255,12 +287,102 @@ export const ExperienceCertificateModal: React.FC<ExperienceCertificateModalProp
     }
 
     const imgData = flattened.toDataURL('image/jpeg', 0.95);
-    const imgWidth = 210;
-    const imgHeight = (flattened.height * imgWidth) / flattened.width;
-    // Custom page size matching the content exactly — always one page, never cropped or split.
-    const pdf = new jsPDF({ orientation: imgHeight >= imgWidth ? 'portrait' : 'landscape', unit: 'mm', format: [imgWidth, imgHeight] });
-    pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, imgHeight);
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+    const pageWidth = 210;
+    const pageHeight = 297;
+
+    // Fill 98.5% of A4 page with minimal 2mm edge margin
+    const margin = 2;
+    const maxW = pageWidth - margin * 2; // 206mm (~98.1%)
+    const maxH = pageHeight - margin * 2; // 293mm (~98.6%)
+
+    const scaleW = maxW / flattened.width;
+    const scaleH = maxH / flattened.height;
+
+    const finalW = Math.min(maxW, flattened.width * scaleH);
+    const finalH = maxH;
+
+    const posX = (pageWidth - finalW) / 2;
+    const posY = (pageHeight - finalH) / 2;
+
+    pdf.addImage(imgData, 'JPEG', posX, posY, finalW, finalH);
     return pdf;
+  }
+
+  function handlePrint() {
+    const el = document.getElementById('experience-certificate-document');
+    if (!el) return;
+
+    let styles = '';
+    const styleElements = document.querySelectorAll('style, link[rel="stylesheet"]');
+    styleElements.forEach(tag => {
+      styles += tag.outerHTML + '\n';
+    });
+
+    const iframe = document.createElement('iframe');
+    iframe.id = 'exp-cert-print-iframe';
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document;
+    if (!doc) return;
+
+    doc.open();
+    doc.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>${title} - ${employee.name}</title>
+        ${styles}
+        <style>
+          @page {
+            size: A4 portrait;
+            margin: 10mm 12mm;
+          }
+          html, body {
+            background: #ffffff !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 100% !important;
+            height: auto !important;
+          }
+          #experience-certificate-document {
+            border: none !important;
+            box-shadow: none !important;
+            border-radius: 0 !important;
+            max-width: 100% !important;
+            width: 100% !important;
+            margin: 0 auto !important;
+            padding: 0 !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
+        </style>
+      </head>
+      <body>
+        ${el.outerHTML}
+      </body>
+      </html>
+    `);
+    doc.close();
+
+    setTimeout(() => {
+      try {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+      } catch (e) {
+        console.error('Print iframe error:', e);
+      }
+      setTimeout(() => {
+        iframe.remove();
+      }, 2000);
+    }, 300);
   }
 
   async function downloadPdf() {
@@ -355,16 +477,21 @@ export const ExperienceCertificateModal: React.FC<ExperienceCertificateModalProp
         }
       `}</style>
       <div className="bg-white w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden max-h-[92vh] flex flex-col animate-fade-in-up print:animate-none print:shadow-none print:border-none print:rounded-none print:max-h-none print:overflow-visible print:block print:w-full print:max-w-none">
-        <div className="bg-slate-900 text-white px-6 py-4 flex flex-wrap justify-between items-center gap-3 shrink-0 print:hidden">
-          <div className="min-w-0">
-            <h2 className="text-lg font-bold flex items-center gap-2 flex-wrap">
-              <Award size={18} className="text-emerald-400 shrink-0" />
-              <span className="truncate">Experience &amp; Service Certificate</span>
-              <span className="text-[10px] font-bold text-emerald-300 bg-emerald-900/50 border border-emerald-700 rounded-full px-2 py-0.5 whitespace-nowrap">{employee.id}</span>
-            </h2>
-            <p className="text-slate-400 text-xs mt-0.5 truncate">
-              Official Certification for {employee.name} &bull; {designation || employee.role || 'N/A'}
-            </p>
+        <div className="bg-slate-900 text-white px-4 sm:px-6 py-4 flex flex-col sm:flex-row sm:flex-wrap sm:justify-between sm:items-center gap-3 shrink-0 print:hidden">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h2 className="text-lg font-bold flex items-center gap-2 flex-wrap">
+                <Award size={18} className="text-emerald-400 shrink-0" />
+                <span className="truncate">Experience &amp; Service Certificate</span>
+                <span className="text-[10px] font-bold text-emerald-300 bg-emerald-900/50 border border-emerald-700 rounded-full px-2 py-0.5 whitespace-nowrap">{employee.id}</span>
+              </h2>
+              <p className="text-slate-400 text-xs mt-0.5 truncate">
+                Official Certification for {employee.name} &bull; {designation || employee.role || 'N/A'}
+              </p>
+            </div>
+            <button onClick={onClose} className="p-2 hover:bg-slate-800 rounded-full transition-colors shrink-0 sm:hidden">
+              <X size={20} />
+            </button>
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
@@ -377,7 +504,7 @@ export const ExperienceCertificateModal: React.FC<ExperienceCertificateModalProp
             <button onClick={copyText} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-slate-800 text-slate-200 hover:bg-slate-700 transition-colors">
               {copied ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />} {copied ? 'Copied!' : 'Copy Text'}
             </button>
-            <button onClick={() => window.print()} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-slate-800 text-slate-200 hover:bg-slate-700 transition-colors">
+            <button onClick={handlePrint} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-slate-800 text-slate-200 hover:bg-slate-700 transition-colors">
               <Printer size={14} /> Print
             </button>
             <button onClick={share} disabled={busy} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-50 transition-colors">
@@ -386,7 +513,7 @@ export const ExperienceCertificateModal: React.FC<ExperienceCertificateModalProp
             <button onClick={downloadPdf} disabled={busy} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-white text-slate-900 hover:bg-slate-100 disabled:opacity-50 transition-colors">
               <Download size={14} /> Download PDF
             </button>
-            <button onClick={onClose} className="p-2 hover:bg-slate-800 rounded-full transition-colors">
+            <button onClick={onClose} className="hidden sm:inline-flex p-2 hover:bg-slate-800 rounded-full transition-colors">
               <X size={20} />
             </button>
           </div>
@@ -469,38 +596,42 @@ export const ExperienceCertificateModal: React.FC<ExperienceCertificateModalProp
           </div>
         )}
 
-        <div className="p-4 md:p-8 overflow-y-auto bg-slate-50 flex-1 print:p-0 print:bg-white print:overflow-visible print:block">
-          <div id="experience-certificate-document" className="relative bg-white border border-slate-200 shadow-sm rounded-xl p-8 max-w-3xl mx-auto text-slate-800 print:border-none print:shadow-none print:rounded-none print:p-0 print:max-w-none print:w-full print:m-0">
+        <div className="p-4 md:p-8 overflow-y-auto overflow-x-auto bg-slate-50 flex-1 print:p-0 print:bg-white print:overflow-visible print:block">
+          <div id="experience-certificate-document" className="relative bg-white border border-slate-200 shadow-sm rounded-xl p-4 sm:p-6 md:p-8 max-w-3xl mx-auto text-slate-800 print:border-none print:shadow-none print:rounded-none print:p-0 print:max-w-none print:w-full print:m-0">
             <div className="absolute inset-0 z-0 flex items-center justify-center overflow-hidden pointer-events-none select-none">
               <img src="/watermark.png" alt="" className="w-80 h-80 object-contain opacity-[0.12]" />
             </div>
 
             <div className="relative z-10">
-              <div className="flex justify-between items-start pb-5 border-b border-slate-200 mb-5 gap-4">
-                <div className="flex gap-3 items-start">
-                  <img src="/logo.svg" alt="Lomaa IT Solutions" className="h-11 w-auto shrink-0" />
-                  <div>
+              <div className="flex flex-col items-center text-center sm:flex-row sm:justify-between sm:items-start sm:text-left pb-5 border-b-2 border-green-300 mb-5 gap-4">
+                <div className="flex flex-col items-center gap-2 sm:flex-row sm:items-start sm:gap-3 min-w-0">
+                  <img src="/logo_pay.png" alt="Lomaa IT Solutions" className="h-11 w-auto shrink-0" />
+                  <div className="min-w-0">
                     <h3 className="font-extrabold text-lg leading-tight">LOMAA IT SOLUTIONS</h3>
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">GSTIN: 37AALFL9327Q1ZC</p>
                     <p className="text-[10px] text-slate-400 mt-1">1-118-24/2, 2nd floor, sector 12, near Ushodaya Junc., MVP, Visakhapatnam, AP - 530017</p>
                   </div>
                 </div>
-                <div className="text-right shrink-0">
+                <div className="flex flex-col-reverse sm:flex-col items-center gap-1 sm:block sm:shrink-0 sm:text-right">
                   <span className="inline-block text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md px-2.5 pt-1 pb-1 leading-none whitespace-nowrap">OFFICIAL CERTIFICATION</span>
-                  <div className="text-[12px] text-slate-400 mt-2 text-right whitespace-nowrap">
+                  <div className="text-[12px] text-slate-400 sm:mt-0.5 text-left whitespace-nowrap">
                     <Mail size={11} className="inline-block align-middle mr-1 text-slate-400" style={{ verticalAlign: '-1px' }} />
-                    <span className="align-middle">hr@lomaait.com</span>
+                    <span className="align-middle" style={{ fontFamily: "'Comfortaa', sans-serif" }}>hr@lomaait.com</span>
                   </div>
-                  <div className="text-[12px] text-slate-400 mt-1.5 text-right whitespace-nowrap">
+                  <div className="text-[12px] text-slate-400 text-left whitespace-nowrap">
                     <Phone size={11} className="inline-block align-middle mr-1 text-slate-400" style={{ verticalAlign: '-1px' }} />
                     <span className="align-middle">+91 94415 90527</span>
+                  </div>
+                  <div className="text-[12px] text-slate-400 text-left whitespace-nowrap">
+                    <Globe size={11} className="inline-block align-middle mr-1 text-slate-400" style={{ verticalAlign: '-1px' }} />
+                    <span className="align-middle" style={{ fontFamily: "'Comfortaa', sans-serif" }}>www.lomaait.com</span>
                   </div>
                 </div>
               </div>
 
-              <div className="flex justify-between text-xs text-slate-500 mb-6">
+              <div className="flex flex-wrap justify-between gap-x-4 gap-y-1 text-xs text-slate-500 mb-6 break-all sm:break-normal">
                 <span>Ref. No: <span className="font-semibold text-slate-700">{certNumber}</span></span>
-                <span>Date of Issue: <span className="font-semibold text-slate-700">{formattedIssueDate}</span></span>
+                <span className="whitespace-nowrap">Date of Issue: <span className="font-semibold text-slate-700">{formattedIssueDate}</span></span>
               </div>
 
               <div className="text-center mb-6">
@@ -566,6 +697,8 @@ export const ExperienceCertificateModal: React.FC<ExperienceCertificateModalProp
                 <span className="whitespace-nowrap">Page 1 of 1</span>
                 <span className="whitespace-nowrap">Lomaa IT Solutions • Confidential</span>
               </div>
+
+              <AccentGradientBar className="mt-6 -mx-4 sm:-mx-6 md:-mx-8 -mb-4 sm:-mb-6 md:-mb-8 rounded-b-xl print:mx-0 print:mb-0 print:rounded-none" />
             </div>
           </div>
         </div>
